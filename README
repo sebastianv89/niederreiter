@@ -1,0 +1,5 @@
+Implementation of QC-MDPC McEliece public key encryption.
+Author: Sebastian R. Verschoor
+
+A generic implementation of McEliece public key encryption using
+quasi-cyclic moderate-density parity-check (QC-MDPC) codes.

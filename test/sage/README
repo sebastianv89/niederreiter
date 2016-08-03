@@ -1,0 +1,3 @@
+This implementation is NOT SECURE. It is used as a reference and to
+test the correctness of the actual secure implemenation, which is
+implemented in C.
