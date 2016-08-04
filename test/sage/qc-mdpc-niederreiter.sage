@@ -1,3 +1,5 @@
+#!/usr/bin/env sage
+# 
 # Reference implementation of the Niederreiter hybrid cryptosystem.
 #
 # THIS IS NOT A SECURE IMPLEMENTATION!!! USE THIS ONLY FOR
@@ -11,12 +13,16 @@
 # 
 # Author: Sebastian R. Verschoor (srverschoor@uwaterloo.ca)
 # License: TODO
-# 
+
+# TODO: some bug prevents this from working...
+# from __future__ import print_function
 
 import argparse
 import libnacl
+import struct
 import sys
 
+args = argparse.Namespace(verbose=1)
 
 class Util:
     @staticmethod
@@ -36,11 +42,50 @@ class Util:
         
     @staticmethod
     def last_block(matrix):
-        [], blocks = matrix.subdivisions();
-        return matrix.subdivision(0, len(blocks) - 1);
+        [], blocks = matrix.subdivisions()
+        return matrix.subdivision(0, len(blocks) - 1)
+        
+    @staticmethod
+    def pack_vec(vec):
+        if vec.is_sparse():
+            return struct.pack('!' + 'H' * vec.hamming_weight(), *(vec.dict().keys()))
+        else:
+            size = (vec.length() + 7) // 8
+            byte_array = [0] * size
+            for i, bit in enumerate(vec):
+                byte_array[i//8] |= int(bit) << (7-i%8)
+            return struct.pack('!' + 'B' * size, *byte_array)
 
+    @staticmethod
+    def unpack_vec(string, size, is_sparse):
+        if is_sparse:
+            weight = len(string) // 2
+            indices = struct.unpack('!' + 'H' * weight, string)
+            return Util.gen_vec(size, weight, indices)
+        else:
+            vec = (GF(2)^size)(0)
+            byte_array = struct.unpack('!' + 'B' * len(string), string)
+            for i in xrange(size):
+                vec[i] = (byte_array[i//8] >> (7-i%8)) & 1
+            return vec
 
-class DecodeFailure(Exception):
+    @staticmethod
+    def pack_pubkey():
+        pass
+    
+    @staticmethod
+    def unpack_pubkey():
+        pass
+        
+    @staticmethod
+    def pack_privkey():
+        pass
+
+    @staticmethod
+    def unpack_privkey():
+        pass
+
+class DecodingFailure(Exception):
     pass
     
 
@@ -98,13 +143,14 @@ class Niederreiter(object):
     
     def _decode(self, private_syndrome, private_key):
         error_candidate = (GF(2)^self.size)(0)
-        private_key = private_key.dense_matrix() # speed up computation
         for threshold in self.thresholds:
+            syndrome_update = (GF(2)^self.block_size)(0)
             for column_index, column in enumerate(private_key.columns()):
                 error_count = column.pairwise_product(private_syndrome).hamming_weight()
                 if error_count >= threshold:
                     error_candidate[column_index] += 1
-                    private_syndrome += column
+                    syndrome_update += column
+            private_syndrome += syndrome_update
         if private_syndrome == 0:
             return error_candidate
         raise DecodeFailure("Could not decode syndrome")
@@ -138,12 +184,67 @@ class KEMDEM(Niederreiter):
 
 
 class Test:
-    def __init__(block_count, block_size, row_weight, error_weight, thresholds):
+    def __init__(self, block_count, block_size, row_weight, error_weight, thresholds):
         self.N = Niederreiter(block_count, block_size, row_weight, error_weight, thresholds)
         self.KD = KEMDEM(block_count, block_size, row_weight, error_weight, thresholds)
-    
-    def test_correctness(self):
+        
+    def self_test_pack_unpack(self):
         pass
+    
+    def self_test_correctness(self, keys, messages):
+        error = False
+        dfs = 0
+        for k in xrange(keys):
+            if args.verbose >= 1:
+                print("Testing key {}".format(k)) 
+            pub, priv = self.N.keygen()
+            for m in xrange(messages):
+                if args.verbose >= 1:
+                    print "Testing KEM {}:".format(m),
+                    sys.stdout.flush()
+                e = self.N.gen_error()
+                ct = self.N.encrypt(e, pub)
+                try:
+                    pt = self.N.decrypt(ct, priv)
+                except DecodingFailure as df:
+                    print(df)
+                    # TODO: print failure values
+                    dfs += 1
+                else:
+                    if e != pt:
+                        print("Decoded to wrong error")
+                        # TODO: print erronous values
+                        error = True
+                    elif args.verbose >= 1:
+                        print("Test succeeded")
+
+                if args.verbose >= 1:
+                    print "Testing KEM/DEM: {}".format(m), ; sys.stdout.flush()
+                msg = libnacl.randombytes(int(64))
+                ct = self.KD.encrypt(msg, pub)
+                try:
+                    pt = self.KD.decrypt(ct, priv)
+                except DecodingFailure as df:
+                    print(df)
+                    # TODO: print failure values
+                    dfs += 1
+                except ValueError as ve:
+                    print(ve)
+                    # TODO: print erronous values
+                    error = True
+                else:
+                    if msg != pt:
+                        print("Decrypted to wrong value")
+                        # TODO: print erronous values
+                        error = True
+                    elif args.verbose >= 1:
+                        print("Test succeeded")
+                        
+        if args.verbose >= 1:
+            if dfs > 0:
+                print("{} decoding failures".format(dfs))
+            if not error:
+                print("All tests passed")
     
     def test_KEM_encrypt(self, e, pub, expected):
         pass
@@ -151,9 +252,32 @@ class Test:
     def test_KEM_decrypt(self, input, expected):
         pass
 
+
 def main():
-    args = parseargs();
-    print "TODO: testing"
+    global args
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-s", "--selftest",
+                    action="store_true",
+                    help="Run internal consistency tests")
+    ap.add_argument("-k", "--keys",
+                    type=int, default=5,
+                    help="Number of random keys to be tested (default: 5)")
+    ap.add_argument("-m", "--messages",
+                    type=int, default=10,
+                    help="Number of random messages to be tested (default: 5)")
+    ap.add_argument("-v", "--verbose",
+                    action="count", default=0,
+                    help="increase output verbosity")
+    args = ap.parse_args()
+    if args.selftest:
+        test = Test(2, 4801, 45, 84, [29, 27, 25, 24, 23, 23])
+        test.self_test_correctness(args.keys, args.messages)
     
+
 if __name__ == "__main__":
-    main()
+    # only run automatically when not in the repl
+    try:
+        get_ipython()
+    except NameError:
+        main()
