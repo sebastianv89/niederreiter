@@ -1,5 +1,14 @@
-Implementation of QC-MDPC McEliece public key encryption.
+Implementation of QC-MDPC Niederreiter public key encryption.
 Author: Sebastian R. Verschoor
 
-A generic implementation of McEliece public key encryption using
-quasi-cyclic moderate-density parity-check (QC-MDPC) codes.
+A generic implementation of Niederreiter public key encryption using
+quasi-cyclic moderate-density parity-check (QC-MDPC) codes.  The
+implementation applies the KEM/DEM hybrid encryption scheme.  The
+symmetric primitives are Keccak for hashing, Salsa20 for symmetric
+encryption and Poly1305 for message authentication.
+
+TODO:
+- Choose symmetric encryption
+  - Salsa20 or ChaCha20 (should have higher performance)
+  - Or go with authenticated encryption for ease of implementation
+    - easy to switch to the winner of CAESAR competition

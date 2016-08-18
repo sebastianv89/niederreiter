@@ -1,0 +1,4 @@
+#!/bin/sh
+PATH="/home/sebastian/oqs/niederreiter/lib/nacl-20110221/build/ThinkPadL440/bin:/usr/sfw/bin:/usr/local/bin:/home/sebastian/.cargo/bin:/home/sebastian/misc/software/android-studio-2.1/bin:/home/sebastian/misc/software/android-sdk-linux/tools:/home/sebastian/misc/software/android-sdk-linux/platform-tools:/home/sebastian/.rbenv/shims:/home/sebastian/.rbenv/bin:/usr/local/go/bin:/home/sebastian/.cabal/bin:/home/sebastian/bin:/home/sebastian/.cargo/bin:/home/sebastian/misc/software/android-studio-2.1/bin:/home/sebastian/misc/software/android-sdk-linux/tools:/home/sebastian/misc/software/android-sdk-linux/platform-tools:/home/sebastian/.rbenv/shims:/home/sebastian/.rbenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games"
+export PATH
+ar "$@"

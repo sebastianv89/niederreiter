@@ -43,7 +43,7 @@ class Util:
     @staticmethod
     def last_block(matrix):
         [], blocks = matrix.subdivisions()
-        return matrix.subdivision(0, len(blocks) - 1)
+        return matrix.subdivision(0, len(blocks))
         
     @staticmethod
     def pack_vec(vec):
@@ -100,11 +100,11 @@ class Niederreiter(object):
         self.thresholds = thresholds
     
     def keygen(self, first_rows_ids=None):
-        private_key = self._paritycheck(first_rows_ids)
+        private_key = self._parity_check(first_rows_ids)
         public_key = self._systematic(private_key)
         return public_key, private_key
 
-    def _paritycheck(self, first_rows_ids=None):
+    def _parity_check(self, first_rows_ids=None):
         first_rows = self._gen_first_rows(first_rows_ids)
         blocks = [Util.gen_cyclic(first_row) for first_row in first_rows]
         while not blocks[-1].is_invertible():
@@ -120,10 +120,10 @@ class Niederreiter(object):
     def _gen_first_row(self, indices=None):
         return Util.gen_vec(self.block_size, self.row_weight, indices)
 
-    def _systematic(self, paritycheck):
-        last_block = Util.last_block(paritycheck).dense_matrix()
+    def _systematic(self, parity_check):
+        last_block = Util.last_block(parity_check).dense_matrix()
         last_block_inv = last_block.inverse()
-        return last_block_inv * paritycheck
+        return last_block_inv * parity_check
 
     def gen_error(self, indices=None):
         return Util.gen_vec(self.size, self.error_weight, indices)
@@ -137,8 +137,8 @@ class Niederreiter(object):
         private_syndrome = self._private_syndrome(public_syndrome, private_key)
         return self._decode(private_syndrome, private_key)
 
-    def _private_syndrome(self, public_syndrome, paritycheck):
-        last_block = Util.last_block(paritycheck)
+    def _private_syndrome(self, public_syndrome, parity_check):
+        last_block = Util.last_block(parity_check)
         return last_block * public_syndrome
     
     def _decode(self, private_syndrome, private_key):
@@ -159,7 +159,6 @@ class Niederreiter(object):
 class DEM:
     @staticmethod
     def encrypt(plaintext, secret_key):
-        # TODO: nonce==0 => IND-CCA?
         nonce = b"\x00" * libnacl.crypto_secretbox_NONCEBYTES
         return libnacl.crypto_secretbox(plaintext, nonce, secret_key)
     
@@ -198,9 +197,10 @@ class Test:
             if args.verbose >= 1:
                 print("Testing key {}".format(k)) 
             pub, priv = self.N.keygen()
+            assert Util.last_block(pub) == 1, "Error in keygen"
             for m in xrange(messages):
                 if args.verbose >= 1:
-                    print "Testing KEM {}:".format(m),
+                    print "Testing KEM {}.{}:".format(k,m),
                     sys.stdout.flush()
                 e = self.N.gen_error()
                 ct = self.N.encrypt(e, pub)
@@ -245,6 +245,7 @@ class Test:
                 print("{} decoding failures".format(dfs))
             if not error:
                 print("All tests passed")
+        return dfs > 0 or error
     
     def test_KEM_encrypt(self, e, pub, expected):
         pass
@@ -255,6 +256,7 @@ class Test:
 
 def main():
     global args
+    err_code = 0
 
     ap = argparse.ArgumentParser()
     ap.add_argument("-s", "--selftest",
@@ -272,12 +274,20 @@ def main():
     args = ap.parse_args()
     if args.selftest:
         test = Test(2, 4801, 45, 84, [29, 27, 25, 24, 23, 23])
-        test.self_test_correctness(args.keys, args.messages)
-    
+        err_code = test.self_test_correctness(args.keys, args.messages)
+    sys.exit(err_code)
 
 if __name__ == "__main__":
-    # only run automatically when not in the repl
     try:
         get_ipython()
     except NameError:
+        # only run automatically when not in the repl
         main()
+    else:
+        # set globals as helper variables in the repl
+        global gN
+        global gKD
+        global gT
+        gN = Niederreiter(2, 4801, 45, 84, [29, 27, 25, 24, 23, 23])
+        gKD = KEMDEM(2, 4801, 45, 84, [29, 27, 25, 24, 23, 23])
+        gT = Test(2, 4801, 45, 84, [29, 27, 25, 24, 23, 23])
