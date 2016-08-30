@@ -1,169 +1,14 @@
-#include <stdlib.h>
 #include "poly.h"
+#include "config.h"
 #include "randombytes.h"
 
-/*
- * The polynomial operations in this file are in the ring
- * GF(2)[x]/(x^r-1), where r = POLY_BITS.  From here on, we refer to
- * this modulus as the polynomial G.
- *
- * Polynomial representation: The lsb of each word holds the
- * coefficient of the lowest degree. Words with a higher index hold
- * represent higher degrees. For example, the two 8-bit word f with
- * f[0] = 0b00010011; f[1] = 0b00100000 represents the polynomial 1 +
- * x + x^4 + x^13.
- * 
+/* 
  * There's quite some room for improvements in assembly, unless the
- * compiler is already very clever. Having access to the carry flag,
+ * compiler is already very clever. Having access to the carry flag
  * could speed up multiplications and divisions by x. Being able to
  * have multiple of these carry chains in parallel could speed up
  * the multiplication.
  */
-
-
-/* Generate a sparse polynomial
- * Non-constant time, but it only leaks how many random numbers collided.
- */
-void poly_gen_sparse(
-    index_t *f, size_t weight,
-    index_t max_index,
-    index_t index_mask)
-{
-	/* TODO: compute how small the candidate buffer could be */
-	index_t cand[2 * weight];
-	size_t bits_set, i, j;
-	int collision;
-
-	do {
-        /* TODO: PRNG (now it's just /dev/urandom) */
-		randombytes((unsigned char *)cand, 2 * weight * POLY_INDEX_BYTES);
-
-		bits_set = 0;
-		for (i = 0; i < 2 * weight * POLY_INDEX_BYTES; ++i) {
-			cand[i] &= index_mask;
-			if (cand[i] > max_index) {
-				continue;
-			}
-
-			/* TODO: improve collision detection (sorting?) */
-			collision = 0;
-			for (j = 0; j < i; ++j) {
-				if (cand[i] == f[j]) {
-					collision = 1;
-					break;
-				}
-			}
-			if (collision) {
-				continue;
-			}
-
-			f[bits_set++] = cand[i];
-			if (bits_set == weight) {
-				break;
-			}
-		}
-	} while (bits_set < weight);
-}
-
-/* Could be more efficient with a sorted representation. */
-void poly_to_dense(
-          word_t  *f, size_t words,
-    const index_t *g, size_t indices)
-{
-	size_t i, j;
-	size_t word_index[indices];
-	word_t bit[indices];
-    word_t mask;
-
-	/* split sparse indices into word index and "bit in word" */
-	for (i = 0; i < indices; ++i) {
-		word_index[i] = g[i] >> WORD_INDEX_BITS;
-		bit[i] = WORD_C(1) << (g[i] & POLY_INDEX_MASK);
-	}
-
-	for (i = 0; i < words; ++i) {
-		f[i] = 0;
-		for (j = 0; j < indices; ++j) {
-			/* if (word_index[j] == i) f[i] |= bit[j]; */
-            mask = word_index[j] ^ i;
-            mask = -((mask - 1) >> 63);
-            f[i] |= bit[j] & mask;
-		}
-	}
-}
-
-/* f == g
- * 
- * \return a mask (not a boolean): (f == g ? ~0 : 0)
- */
-word_t poly_eq(
-    const word_t *f,
-    const word_t *g, size_t words)
-{
-    size_t i;
-    word_t different_bits = 0;
-    for (i = 0; i < words; ++i) {
-        different_bits |= f[i] ^ g[i];
-    }
-    different_bits |= different_bits >> (WORD_BITS / 2);
-    different_bits &= (WORD_C(1) << (WORD_BITS / 2)) - 1;
-    return -((different_bits - 1) >> (WORD_BITS - 1));
-}
-
-/* *eq := f == g; *lt := f < g
- *
- * This function is used in the context of the xgcd.  For equality,
- * the polynomials need to be exactly the same.  To find out which
- * polynomial is greater, only the degree matters.  If the degrees
- * are equal, it does not matter what is returned in \p lt.
- * 
- * TODO: I think this is assuming a little-endian representation.
- */
-void poly_compare(word_t *eq, word_t *lt, const word_t *f, const word_t *g)
-{
-    size_t word = POLY_WORDS - 1, shift;
-    unsigned char f_byte, g_byte;
-
-    *lt = 0;
-    *eq = 1;
-    shift = 8 * TAIL_BYTES;
-    while (shift > 0) {
-        shift -= 8;
-        f_byte = f[word] >> shift;
-        g_byte = g[word] >> shift;
-        *lt |= *eq & ((f_byte - g_byte) >> 8);
-        *eq &= ((f_byte ^ g_byte) - 1) >> 8;
-    }
-    while (word > 0) {
-        --word;
-        shift = WORD_BITS;
-        while (shift > 0) {
-            shift -= 8;
-            f_byte = f[word] >> shift;
-            g_byte = g[word] >> shift;
-            *lt |= *eq & ((f_byte - g_byte) >> 8);
-            *eq &= ((f_byte ^ g_byte) - 1) >> 8;
-        }
-    }
-    *eq = -(*eq);
-    *lt = -(*lt);
-}
-
-/* f == 1, in non-constant time */
-int poly_is_one_nonconst(const word_t *f)
-{
-    size_t i;
-
-    if (f[0] != 1) {
-        return 0;
-    }
-    for (i = 1; i < POLY_WORDS; ++i) {
-        if (f[i] != 0) {
-            return 0;
-        }
-    }
-    return 1;
-}
 
 /* dest := src */
 void poly_copy(word_t *dest, const word_t *src, size_t words)
@@ -171,15 +16,6 @@ void poly_copy(word_t *dest, const word_t *src, size_t words)
     size_t i;
     for (i = 0; i < words; ++i) {
         dest[i] = src[i];
-    }
-}
-
-/* f := 0 */
-void poly_zero(word_t *f, size_t words)
-{
-    size_t i;
-    for (i = 0; i < words; ++i) {
-        f[i] = 0;
     }
 }
 
@@ -195,15 +31,6 @@ void poly_G(word_t *f)
 {
     poly_one(f, POLY_WORDS - 1);
     f[POLY_WORDS - 1] = WORD_C(1) << TAIL_BITS;
-}
-
-/* f = g + h */
-void poly_add(word_t *f, const word_t *g, const word_t *h, size_t words)
-{
-    size_t i;
-    for (i = 0; i < words; ++i) {
-        f[i] = g[i] ^ h[i];
-    }
 }
 
 /* f *= x */
@@ -224,7 +51,6 @@ void poly_mul_x(word_t *f, size_t words)
     f[i] |= carry;
 }
 
-/* f *= x mod G */
 void poly_inplace_mul_x_modG(word_t *f)
 {
     size_t i;
@@ -293,7 +119,6 @@ void poly_div_x_modG(word_t *f, const word_t *g)
 #endif
 }
 
-
 /* f := g mod G
  *
  * g is the result of a non-reduced multiplication
@@ -310,56 +135,58 @@ void poly_reduce(word_t *f, const word_t *g)
     f[i] = g[i] & TAIL_MASK;
 }
 
-/* This function implements schoolbook multiplication, with reduction
- * mod G postponed until the very end.  There is much room for
- * optimizations, for example, Karatsuba multiplication should achieve
- * a great speedup, as would FFT multiplication.  Using the CLMUL
- * instruction (where available) is another option (but less
- * portable).
+/* f == 1, in non-constant time */
+int poly_is_one_nonconst(const word_t *f)
+{
+    size_t i;
+
+    if (f[0] != 1) {
+        return 0;
+    }
+    for (i = 1; i < POLY_WORDS; ++i) {
+        if (f[i] != 0) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* *eq := f == g; *lt := f < g
+ *
+ * This function is used in the context of the xgcd.  For equality,
+ * the polynomials need to be exactly the same.  To find out which
+ * polynomial is greater, only the degree matters.  If the degrees
+ * are equal, it does not matter what is returned in \p lt.
  */
-void poly_mul(word_t *f, const word_t *g, const word_t *h)
+void poly_compare(word_t *eq, word_t *lt, const word_t *f, const word_t *g)
 {
-    static const size_t LHS_WORDS = TAIL_BITS == 1 ? POLY_WORDS : POLY_WORDS + 1;
+    size_t word = POLY_WORDS - 1, shift;
+    unsigned char f_byte, g_byte;
 
-    size_t bit_index, i, j;
-    word_t lhs[LHS_WORDS];
-    word_t res[2 * POLY_WORDS - 1];
-    word_t lhs_mask;
-
-    poly_copy(lhs, g, POLY_WORDS);
-#if TAIL_BITS > 1
-    lhs[POLY_WORDS] = 0;
-#endif
-    poly_zero(res, 2 * POLY_WORDS - 1);
-
-    /* bit_index == 0 */
-    for (i = 0; i < POLY_WORDS; ++i) {
-        lhs_mask = -(h[i] & WORD_C(1));
-        for (j = 0; j < LHS_WORDS; ++j) {
-            res[i + j] ^= lhs[j] & lhs_mask;
+    *lt = 0;
+    *eq = 1;
+    shift = 8 * TAIL_BYTES;
+    while (shift > 0) {
+        shift -= 8;
+        f_byte = (unsigned char)(f[word] >> shift);
+        g_byte = (unsigned char)(g[word] >> shift);
+        *lt |= *eq & ((f_byte - g_byte) >> 8);
+        *eq &= ((f_byte ^ g_byte) - 1) >> 8;
+    }
+    while (word > 0) {
+        --word;
+        shift = WORD_BITS;
+        while (shift > 0) {
+            shift -= 8;
+            f_byte = (unsigned char)(f[word] >> shift);
+            g_byte = (unsigned char)(g[word] >> shift);
+            *lt |= *eq & ((f_byte - g_byte) >> 8);
+            *eq &= ((f_byte ^ g_byte) - 1) >> 8;
         }
     }
-    for (bit_index = 1; bit_index < WORD_BITS; ++bit_index) {
-        poly_inplace_mul_x_modG(lhs);
-        for (i = 0; i < POLY_WORDS; ++i) {
-            lhs_mask = -((h[i] >> bit_index) & WORD_C(1));
-            for (j = 0; j < LHS_WORDS; ++j) {
-                res[i + j] ^= lhs[j] & lhs_mask;
-            }
-        }
-    }
-    
-    poly_reduce(f, res);
+    *eq = -(*eq);
+    *lt = -(*lt);
 }
-
-/* TODO: this can be optimized */
-void poly_sparse_mul(word_t *f, const word_t *g, const index_t *h)
-{
-    word_t h_dense[POLY_WORDS];
-    poly_to_dense(h_dense, POLY_WORDS, h, POLY_SPARSE_WEIGHT); // TODO: hardcoded
-    poly_mul(f, g, h_dense);
-}
-
 
 /* Compute xgcd(f, G)
  *
@@ -371,11 +198,8 @@ void poly_sparse_mul(word_t *f, const word_t *g, const index_t *h)
  * \param[out] f  gcd(f, G)
  * \param[out] a  parameter a in Bézout identity "gcd(x,y) = ax + by"
  */
-void poly_xgcd(word_t *f_, word_t *a_)
+void poly_xgcd(word_t *f, word_t *a)
 {
-    // debug line
-    word_t f[POLY_WORDS], a[POLY_WORDS]; poly_copy(f, f_, POLY_WORDS); poly_copy(a, a_, POLY_WORDS);
-
     size_t i, j;
     word_t g[POLY_WORDS], b[POLY_WORDS];
     word_t f_div_x[POLY_WORDS], g_div_x[POLY_WORDS];
@@ -438,14 +262,280 @@ void poly_xgcd(word_t *f_, word_t *a_)
             b[j] = (b[j] & mask_g2g) | (b_div_x[j] & mask_g2gx) | (ab_div_x[j] & mask_g2fgx);
         }
     }
-    // debug line
-    poly_copy(f_, f, POLY_WORDS); poly_copy(a_, a, POLY_WORDS);
 }
+
+
+void poly_zero(word_t *f, size_t words)
+{
+    size_t i;
+    for (i = 0; i < words; ++i) {
+        f[i] = 0;
+    }
+}
+
+void poly_gen_sparse(index_t *f, enum sparse_type type)
+{
+    index_t index_mask;
+    size_t weight, max_index;
+	size_t bits_set, i, j;
+    index_t next, tmp, mask;
+    index_t cand[RAND_BUFFER_SIZE];
+
+    if (type == TYPE_POLY) {
+        weight = POLY_WEIGHT;
+        max_index = POLY_BITS;
+        index_mask = (INDEX_C(1) << POLY_INDEX_BITS) - 1;
+    } else {
+        weight = ERROR_WEIGHT;
+        max_index = ERROR_BITS;
+        index_mask = (INDEX_C(1) << ERROR_INDEX_BITS) - 1;
+    }
+
+	do {
+        /* TODO: PRNG (now it's just /dev/urandom) */
+		randombytes((unsigned char *)cand, RAND_BUFFER_SIZE * INDEX_BYTES);
+
+		bits_set = 0;
+		for (i = 0; i < RAND_BUFFER_SIZE; ++i) {
+			cand[i] &= index_mask;
+			if (cand[i] > max_index) {
+				continue;
+			}
+
+            /* constant time insertion sort */
+            next = cand[i];
+			for (j = 0; j < bits_set; ++j) {
+				if (f[j] == cand[i]) {
+					break;
+				}
+                mask = -(((index_t)(f[j] - next)) >> (INDEX_BITS - 1));
+                tmp  = (f[j] &  mask) | (next & ~mask);
+                next = (f[j] & ~mask) | (next &  mask);
+                f[j] = tmp;
+			}
+            if (j != bits_set) {
+                continue;
+            }
+            f[j] = next;
+
+            ++bits_set;
+			if (bits_set == weight) {
+				break;
+			}
+		}
+	} while (bits_set < weight);
+}
+
+void poly_to_dense(word_t *f, const index_t *g)
+{
+	size_t i, j;
+	size_t word_index[POLY_WEIGHT];
+	word_t bit[POLY_WEIGHT];
+    word_t mask;
+
+	/* split sparse indices into word index and "bit in word" */
+	for (i = 0; i < POLY_WEIGHT; ++i) {
+		word_index[i] = g[i] >> WORD_INDEX_BITS;
+		bit[i] = WORD_C(1) << (g[i] & WORD_INDEX_MASK);
+	}
+
+	for (i = 0; i < POLY_WORDS; ++i) {
+		f[i] = 0;
+		for (j = 0; j < POLY_WEIGHT; ++j) {
+            mask = word_index[j] ^ i;
+            mask = -((mask - 1) >> (WORD_BITS - 1));
+            f[i] |= bit[j] & mask;
+		}
+	}
+}
+
+/* Ignores indices of g that are larger than POLY_BITS */
+void error_block_to_dense(word_t *f, const index_t *g)
+{
+    size_t i, j;
+    size_t word_index[ERROR_WEIGHT];
+    word_t bit[ERROR_WEIGHT];
+    word_t mask;
+
+	/* split sparse indices into word index and "bit in word" */
+	for (i = 0; i < POLY_WEIGHT; ++i) {
+		word_index[i] = g[i] >> WORD_INDEX_BITS;
+		bit[i] = WORD_C(1) << (g[i] & WORD_INDEX_MASK);
+	}
+
+	for (i = 0; i < POLY_WORDS; ++i) {
+		f[i] = 0;
+		for (j = 0; j < ERROR_WEIGHT; ++j) {
+            /* f[i] |= word_index[j] == i ? bit[j] : 0 */
+            mask = word_index[j] ^ i;
+            mask = -((mask - 1) >> (WORD_BITS - 1));
+            f[i] |= bit[j] & mask;
+		}
+	}
+    f[i] &= TAIL_MASK;
+}
+
+/* This function relies on the fact that POLY_BITS < 2^{INDEX_BITS-1}
+ * and that ERROR_BITS < 2^{INDEX_BITS-1}.  Namely, the highest bit is
+ * used to determine if subtraction resulted in underflow, and that
+ * subtraction from -1 does not affect the highest bit.  This
+ * assumption might not hold for a different parameter set.
+ */
+void error_to_dense(word_t *f, index_t *g)
+{
+    size_t i, j;
+    index_t mask;
+    poly_to_dense(f, g);
+    for (i = 1; i < NUMBER_OF_POLYS; ++i) {
+        for (j = 0; j < ERROR_WEIGHT; ++j) {
+            /* g[j] = g[j] >= POLY_BITS ? g[j] - POLY_BITS : -1 */
+            g[j] -= POLY_BITS;
+            mask = -(g[j] >> (INDEX_BITS - 1));
+            g[j] |= mask;
+        }
+        poly_to_dense(f + i * POLY_WORDS, g);
+    }
+}
+
+/* TODO: if the processor has a built-in popcount, that is probably
+ * more efficient */
+word_t poly_hamming_weight(const word_t *f)
+{
+    static const word_t MASK0 = (word_t)(~WORD_C(0)) / 3;
+    static const word_t MASK1 = (word_t)(~WORD_C(0)) / 15 * 3;
+    static const word_t MASK2 = (word_t)(~WORD_C(0)) / 255 * 15;
+    static const word_t MULT  = (word_t)(~WORD_C(0)) / 255;
+
+    word_t total = 0;
+    word_t wc;
+    size_t i;
+    
+    for (i = 0; i < POLY_WORDS; ++i) {
+        wc  = f[i];
+        wc -= (wc >> 1) & MASK0;
+        wc  = (wc & MASK1) + ((wc >> 2) & MASK1);
+        wc  += wc >> 4;
+        wc  &= MASK2;
+        wc  *= MULT;
+        wc >>= WORD_BITS - 8;
+        total += wc;
+    }
+    return total;
+}
+
+void poly_mask(word_t *f, const word_t *g, const word_t *mask)
+{
+    size_t i;
+    for (i = 0; i < POLY_WORDS; ++i) {
+        f[i] = g[i] & mask[i];
+    }
+}
+
+int poly_is_zero(const word_t *f, size_t words)
+{
+    size_t i, shift;
+    unsigned char nonzero_bits = 0;
+    for (i = 0; i < words - 1; ++i) {
+        nonzero_bits |= f[i];
+        for (shift = 8; shift < WORD_BYTES; shift += 8) {
+            nonzero_bits |= f[i] >> shift;
+        }
+    }
+    nonzero_bits |= f[i];
+    for (shift = 8; shift < TAIL_BYTES; shift += 8) {
+        nonzero_bits |= f[i] >> shift;
+    }
+    return (((nonzero_bits - 1) >> 8) & 1) - 1;
+}
+
+void poly_transpose(index_t *f) {
+    size_t i;
+    index_t mask;
+    
+    mask = ((index_t)(-f[0]) >> (INDEX_BITS - 1)) - 1;
+    f[0] = POLY_BITS - f[0] - (POLY_BITS & mask);
+    for (i = 1; i < POLY_WEIGHT; ++i) {
+        f[i] = POLY_BITS - f[i];
+    }
+}
+
+void poly_add_masked(word_t *f, const word_t *g, word_t mask)
+{
+    size_t i;
+    for (i = 0; i < POLY_WORDS; ++i) {
+        f[i] ^= g[i] & mask;
+    }
+}
+
+void poly_add(word_t *f, const word_t *g, const word_t *h, size_t words)
+{
+    size_t i;
+    for (i = 0; i < words; ++i) {
+        f[i] = g[i] ^ h[i];
+    }
+}
+
+void poly_flip(word_t *f, index_t bit_index, word_t bit)
+{
+    size_t word_index;
+    word_t bit_mask;
+
+    word_index = bit_index >> WORD_INDEX_BITS;
+    bit_mask = bit << (bit_index & WORD_INDEX_MASK);
+    f[word_index] ^= bit_mask;
+}
+
+/* This function implements schoolbook multiplication, with reduction
+ * mod G postponed until the very end.  There is much room for
+ * optimizations, for example, Karatsuba multiplication should achieve
+ * a great speedup, as would FFT multiplication.  Using the CLMUL
+ * instruction (where available) is another option (but less
+ * portable).
+ */
+void poly_mul(word_t *f, const word_t *g, const word_t *h)
+{
+    size_t bit_index, i, j;
+    word_t lhs[POLY_WORDS];
+    word_t res[2 * POLY_WORDS - 1];
+    word_t lhs_mask;
+
+    poly_copy(lhs, g, POLY_WORDS);
+    poly_zero(res, 2 * POLY_WORDS - 1);
+
+    /* bit_index == 0 */
+    for (i = 0; i < POLY_WORDS; ++i) {
+        lhs_mask = -(h[i] & WORD_C(1));
+        for (j = 0; j < POLY_WORDS; ++j) {
+            res[i + j] ^= lhs[j] & lhs_mask;
+        }
+    }
+    for (bit_index = 1; bit_index < WORD_BITS; ++bit_index) {
+        poly_inplace_mul_x_modG(lhs);
+        for (i = 0; i < POLY_WORDS; ++i) {
+            lhs_mask = -((h[i] >> bit_index) & WORD_C(1));
+            for (j = 0; j < POLY_WORDS; ++j) {
+                res[i + j] ^= lhs[j] & lhs_mask;
+            }
+        }
+    }
+    
+    poly_reduce(f, res);
+}
+
+/* TODO: can this be optimized(?) */
+void poly_sparse_mul(word_t *f, const word_t *g, const index_t *h)
+{
+    word_t h_dense[POLY_WORDS];
+    poly_to_dense(h_dense, h);
+    poly_mul(f, g, h_dense);
+}
+
 
 int poly_inv(word_t *f)
 {
     word_t inv[POLY_WORDS];
     poly_xgcd(f, inv);
+
     if (poly_is_one_nonconst(f)) {
         poly_copy(f, inv, POLY_WORDS);
         return 0;
@@ -453,33 +543,54 @@ int poly_inv(word_t *f)
     return -1;
 }
 
-
 #if defined(POLY_MAIN)
 
-#include <stdio.h>
-#include "randombytes.h"
+#include "debug.h"
+#include "assert.h"
 
-void poly_rand(word_t *f)
-{
-    randombytes((unsigned char *)f, BLOCK_BYTES);
-    f[POLY_WORDS - 1] &= TAIL_MASK;
-}
+int main(void) {
+    word_t f[POLY_WORDS], g[POLY_WORDS], h[POLY_WORDS];
+    word_t h_inv[POLY_WORDS];
+    index_t f_sparse[POLY_BITS], g_sparse[POLY_WEIGHT], h_sparse[POLY_WEIGHT];
+    size_t f_weight;
 
-int main(void)
-{
-    word_t f[POLY_WORDS], g[POLY_WORDS], h[POLY_WORDS], inv[POLY_WORDS];
-    index_t g_sparse[45];
-
-    printf("TAIL_BITS == %u\n", TAIL_BITS);
+    poly_gen_sparse(g_sparse, TYPE_POLY);
+    poly_gen_sparse(h_sparse, TYPE_POLY);
+    poly_to_dense(g, g_sparse);
+    poly_to_dense(h, h_sparse);
+    poly_mul(f, g, h);
+    poly_to_sparse(f_sparse, &f_weight, f);
     
-    do {
-        poly_gen_sparse(g_sparse, BLOCK_WEIGHT, POLY_BITS - 1, POLY_INDEX_MASK);
-        poly_to_dense(g, POLY_WORDS, g_sparse, POLY_WEIGHT);
-        poly_copy(h, g, POLY_WORDS);
-        poly_xgcd(g, inv);
-    } while (!poly_is_one_nonconst(g));
-    poly_mul(f, h, inv);
+    printf("g: ");
+    print_poly_sparse(g_sparse, POLY_WEIGHT);
+    printf("\n");
+    print_poly_dense(g, POLY_WORDS);
+    printf("\nh: ");
+    print_poly_sparse(h_sparse, POLY_WEIGHT);
+    printf("\n");
+    print_poly_dense(h, POLY_WORDS);
+    printf("\nf = g*h:\n");
+    print_poly_sparse(f_sparse, f_weight);
+    printf("\n");
+    print_poly_dense(f, POLY_WORDS);
+    printf("\n");
+    
+    poly_copy(h_inv, h, POLY_WORDS);
+    if (poly_inv(h_inv)) {
+        printf("oops, h not invertible\n");
+        return -1;
+    }
+    poly_mul(f, h, h_inv);
 
+    printf("h^{-1}: ");
+    poly_to_sparse(f_sparse, &f_weight, h_inv);
+    print_poly_sparse(f_sparse, f_weight);
+    printf("\n");
+    print_poly_dense(h_inv, POLY_WORDS);
+    printf("\nf = h/h:\n");
+    print_poly_dense(f, POLY_WORDS);
+    printf("\n");
+    
     return 0;
 }
 

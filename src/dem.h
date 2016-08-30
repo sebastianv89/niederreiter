@@ -9,17 +9,13 @@
      crypto_onetimeauth_poly1305_KEYBYTES)
 
 void dem_encrypt(
-    unsigned char *ct,
-    unsigned long long *ct_len,
-    const unsigned char *msg,
-    unsigned long long msg_len,
+          unsigned char *ct,  unsigned long long *ct_len,
+    const unsigned char *msg, unsigned long long msg_len,
     const unsigned char *sec_key);
 
 int dem_decrypt(
-    unsigned char *msg,
-    unsigned long long *msg_len,
-    const unsigned char *ct,
-    unsigned long long ct_len,
+          unsigned char *msg, unsigned long long *msg_len,
+    const unsigned char *ct,  unsigned long long ct_len,
     const unsigned char *sec_key);
 
 #endif /* INCLUDED_DEM_H */

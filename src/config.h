@@ -1,30 +1,25 @@
 #ifndef NIEDERREITER_CONFIG_H
 #define NIEDERREITER_CONFIG_H
 
-/** Cryptosystem parameters */
+#include "endian.h"
 
 #define NUMBER_OF_POLYS 2    /**< n_0   */
 #define POLY_BITS       4801 /**< r     */
 #define POLY_WEIGHT     45   /**< w/n_0 */
 #define ERROR_WEIGHT    84   /**< t     */
 
-
-/** Decoder parameters */
-
 #define THRESHOLDS {29, 27, 25, 24, 23, 23} /**< T */
 #define ITERATIONS 6                        /**< length(THRESHOLDS) */
 
-
-/** Implementation parameters */
+#define RAND_BUFFER_SIZE 120
 
 /* TODO: dynamic source of randomness */
-
 
 #define POLY_INDEX_BITS  13 /**< ceil(log_2(POLY_BITS)) */
 #define ERROR_INDEX_BITS 14 /**< ceil(log_2(ERROR_BITS)) */
 #define INDEX_BITS 16
 
-/* Check the above hardcoded values */
+/* Check the index bits values */
 #if   1 << POLY_INDEX_BITS < POLY_BITS || POLY_BITS < 1 << (POLY_INDEX_BITS - 1)
 #error Invalid value for POLY_INDEX_BITS
 #elif 1 << ERROR_INDEX_BITS < (NUMBER_OF_POLYS * POLY_BITS) \
@@ -34,22 +29,12 @@
 #error Invalid value for INDEX_BITS
 #endif
 
-/** Derived parameters */
-
 #define ERROR_BITS (NUMBER_OF_POLYS * POLY_BITS)
 
 #define TO_BYTES(bits) (((bits) + 7) / 8)
-#define POLY_INDEX_BYTES  TO_BYTES(POLY_INDEX_BITS)
+
+#define INDEX_BYTES TO_BYTES(INDEX_BITS)
 #define POLY_BYTES TO_BYTES(POLY_BITS)
-
-#define PUBLIC_KEY_BYTES  ((NUMBER_OF_POLYS - 1) * POLY_BYTES)
-#define PRIVATE_KEY_BYTES (NUMBER_OF_POLYS * POLY_INDEX_BYTES)
-
-/** Dynamic word sizes */
-
-#ifndef WORD_BITS
-#define WORD_BITS 64
-#endif
 
 #if defined(SUPERCOP_BUILD)
 
@@ -95,10 +80,10 @@
 #endif /* defined(SUPERCOP_BUILD) */
 
 #define TYPE(b) TYPE_T(b)
+#define TO_WORDS(bits) (((bits) + WORD_BITS - 1) / WORD_BITS)
 
 typedef TYPE(WORD_BITS) word_t;
 typedef TYPE(INDEX_BITS) index_t;
-                         
 
 /* Derived word parameters */
 
@@ -113,27 +98,31 @@ typedef TYPE(INDEX_BITS) index_t;
 #else
 #error Specified invalid size for WORD_BITS
 #endif
-                         
-/* Check the above harcoded values */
+
 #if 1 << WORD_INDEX_BITS != WORD_BITS
 #error Incorrect value for WORD_INDEX_BITS
 #endif
+#define WORD_INDEX_MASK ((INDEX_C(1) << WORD_INDEX_BITS) - 1)
 
 #define TAIL_BITS (POLY_BITS % WORD_BITS)
+#define TAIL_BYTES TO_BYTES(TAIL_BITS)
+#define TAIL_MASK ((WORD_C(1) << TAIL_BITS) - 1)
 
 #define WORD_BYTES TO_BYTES(WORD_BITS)
-#define TAIL_BYTES TO_BYTES(TAIL_BITS)
-
-#define TO_WORDS(bits) (((bits) + WORD_BITS - 1) / WORD_BITS)
 #define POLY_WORDS TO_WORDS(POLY_BITS)
-                         
-#define TO_INDEX_MASK(bits) ((INDEX_C(1) << bits) - 1)
-#define WORD_INDEX_MASK TO_INDEX_MASK(WORD_INDEX_BITS)
-#define POLY_INDEX_MASK TO_INDEX_MASK(POLY_INDEX_MASK)
-#define ERROR_INDEX_MASK TO_INDEX_MASK(ERROR_INDEX_MASK)
 
-#define TO_WORD_MASK(bits) ((WORD_C(1) << bits) - 1)
-#define TAIL_MASK TO_WORD_MASK(TAIL_BITS)
+#define ERROR_BYTES TO_BYTES(ERROR_BITS)
+#define ERROR_WORDS TO_WORDS(ERROR_BITS)
+
+#define SYNDROME_WORDS POLY_WORDS
+#define SYNDROME_BYTES POLY_BYTES
+
+#define PUBLIC_KEY_WORDS ((NUMBER_OF_POLYS - 1) * POLY_WORDS)
+#define PUBLIC_KEY_BYTES  ((NUMBER_OF_POLYS - 1) * POLY_BYTES)
+
+#define PRIVATE_KEY_WEIGHT (NUMBER_OF_POLYS * POLY_WEIGHT)
+#define PRIVATE_KEY_BYTES (PRIVATE_KEY_WEIGHT * INDEX_BYTES)
+
+#include "debug.h" /* TODO: remove after debugging */
 
 #endif /* NIEDERREITER_CONFIG_H */
-

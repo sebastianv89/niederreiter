@@ -1,5 +1,3 @@
-#include <string.h>
-
 #include "crypto_stream_salsa20.h"
 #include "crypto_onetimeauth_poly1305.h"
 
@@ -16,7 +14,7 @@ void dem_encrypt(
     const unsigned char *auth_key = sec_key + crypto_stream_salsa20_KEYBYTES;
 
     *ct_len = msg_len + crypto_onetimeauth_poly1305_BYTES;
-    crypto_stream_xor_salsa20(ct, msg, msg_len, nonce, sec_key);
+    crypto_stream_salsa20_xor(ct, msg, msg_len, nonce, sec_key);
     crypto_onetimeauth_poly1305(auth, ct, msg_len, auth_key);
 }
 
@@ -31,9 +29,9 @@ int dem_decrypt(
 
     *msg_len = ct_len - crypto_onetimeauth_poly1305_BYTES;
     auth = ct + *msg_len;
-    ret_val = crypto_onetimeauth_verify_poly1305(auth, ct, msg_len, auth_key);
+    ret_val = crypto_onetimeauth_poly1305_verify(auth, ct, *msg_len, auth_key);
     if (ret_val) {
         return ret_val;
     }
-    return crypto_stream_xor_salsa20(msg, ct, ct_len, nonce, sec_key);
+    return crypto_stream_salsa20_xor(msg, ct, ct_len, nonce, sec_key);
 }

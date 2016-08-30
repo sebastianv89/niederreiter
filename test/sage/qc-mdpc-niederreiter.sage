@@ -85,6 +85,7 @@ class Util:
     def unpack_privkey():
         pass
 
+
 class DecodingFailure(Exception):
     pass
     
@@ -134,7 +135,9 @@ class Niederreiter(object):
         return systematic * error
     
     def decrypt(self, public_syndrome, private_key):
+        print "pub syn hw (", public_syndrome.hamming_weight(), ")"
         private_syndrome = self._private_syndrome(public_syndrome, private_key)
+        print "priv syn hw (", private_syndrome.hamming_weight(), ")"
         return self._decode(private_syndrome, private_key)
 
     def _private_syndrome(self, public_syndrome, parity_check):
@@ -144,12 +147,16 @@ class Niederreiter(object):
     def _decode(self, private_syndrome, private_key):
         error_candidate = (GF(2)^self.size)(0)
         for threshold in self.thresholds:
+            count = 0
+            print "threshold", threshold
             syndrome_update = (GF(2)^self.block_size)(0)
             for column_index, column in enumerate(private_key.columns()):
                 error_count = column.pairwise_product(private_syndrome).hamming_weight()
                 if error_count >= threshold:
+                    count += 1
                     error_candidate[column_index] += 1
                     syndrome_update += column
+            print "potential errors found", count
             private_syndrome += syndrome_update
         if private_syndrome == 0:
             return error_candidate
