@@ -1,91 +1,92 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include <assert.h>
 
-#include "config.h"
 #include "randombytes.h"
+
 #include "poly.h"
+#include "config.h"
+#include "debug.h"
 
-#define TEST_ROUNDS 10
-
-void poly_rand(word_t *f)
-{
-    randombytes((unsigned char *)f, POLY_WORDS * WORD_BYTES);
-    f[POLY_WORDS - 1] &= TAIL_MASK;
-}
-
-/* f == g */
-int poly_eq(const word_t *f, const word_t *g, size_t words)
-{
-    size_t i;
-    for (i = 0; i < words; ++i) {
-        if (f[i] != g[i]) {
-            return 0;
-        }
-    }
-    return 1;
-}
-
-/* f == g */
-int poly_sparse_eq(const index_t *f, const index_t *g, size_t indices)
-{
-    size_t i;
-    for (i = 0; i < indices; ++i) {
-        if (f[i] != g[i]) {
-            return 0;
-        }
-    }
-    return 1;
-}
-
-/* f (sparse) := g (dense) */
-void poly_to_sparse(index_t *f, size_t *indices, const word_t g, size_t words)
-{
-    size_t i, j = 0;
-    word_t bit;
-    *indices = 0;
-
-    for (i = 0; i < words; ++i) {
-        for (j = 0, bit = 1; j < WORD_BITS; ++j, bit <<= 1)
-            if (g[j] & bit) {
-                f[indices++] = i * WORD_BITS + j;
-            }
-        }
-    }
-}
-
-void test_poly_to_dense()
+void test_to_dense()
 {
     word_t f[POLY_WORDS];
     index_t g0[POLY_WEIGHT], g1[POLY_WEIGHT];
     index_t h0[ERROR_WEIGHT], h1[ERROR_WEIGHT];
     size_t weight;
     
-    poly_gen_sparse(g0, GEN_POLY);
-    poly_to_dense(f, POLY_WORDS, g0, POLY_WEIGHT);
-    poly_to_sparse(g1, &weight, f, POLY_WORDS);
+    poly_gen_sparse(g0, TYPE_POLY);
+    poly_to_dense(f, g0);
+    poly_to_sparse(g1, &weight, f);
     assert(weight == POLY_WEIGHT);
     assert(poly_sparse_eq(g0, g1, POLY_WEIGHT));
 
-    poly_gen_sparse(h0, GEN_ERROR);
-    poly_to_dense(f, POLY_WORDS, h0, ERROR_WEIGHT);
-    poly_to_sparse(h1, &weight, f, POLY_WORDS);
+    poly_gen_sparse(h0, TYPE_ERROR);
+    error_to_dense(f, h0);
+    error_to_sparse(h1, &weight, f);
+    print_poly_dense(f + , ERROR_);
+    print_poly_dense(f, ERROR_);
+    print_poly_sparse(h0, ERROR_WEIGHT);
+    printf("\nweight: %"PRIu64"\n",weight);
     assert(weight == ERROR_WEIGHT);
     assert(poly_sparse_eq(h0, h1, ERROR_WEIGHT));
 }
 
+void test_mul_inv()
+{
+    word_t f[POLY_WORDS], g[POLY_WORDS], h[POLY_WORDS];
+    index_t g_sparse[POLY_WEIGHT];
+    
+    poly_gen_sparse(g_sparse, TYPE_POLY);
+    poly_to_dense(g, g_sparse);
+    poly_copy(g, h, POLY_WORDS);
+    if (poly_inv(g)) {
+        fprintf(stderr, "Unlucky test-case: g was not invertible\n");
+        return;
+    }
+    poly_mul(f, g, h);
+    assert(poly_is_one_nonconst(f));
+}
+
+void test_compare()
+{
+    word_t f[POLY_WORDS], g[POLY_WORDS];
+    word_t eq, lt;
+    bool is_eq;
+    index_t deg_f, deg_g;
+    
+    poly_rand(f);
+    poly_rand(g);
+    is_eq = poly_eq(f, g, POLY_WORDS);
+    deg_f = poly_degree(f);
+    deg_g = poly_degree(g);
+    
+    poly_compare(&eq, &lt, f, g);
+    assert(is_eq ? eq == (word_t)(~WORD_C(0)) : eq == 0);
+    if (deg_f < deg_g) {
+        assert(lt == (word_t)(~WORD_C(0)));
+    }
+
+    poly_compare(&eq, &lt, f, f);
+    assert(eq == (word_t)(~WORD_C(0)));
+}
+
 int main(int argc, char *argv[])
 {
-    unsigned int test_rounds;
-    unsigned int i;
+    const unsigned int TEST_ROUNDS = 10;
+    unsigned int i, test_rounds;
     
     if (argc < 2) {
         test_rounds = TEST_ROUNDS;
     } else {
-        test_rounds = atoi(argv[1]);
+        test_rounds = (unsigned int)(atoi(argv[1]));
     }
     
     for (i = 0; i < test_rounds; ++i) {
-        test_poly_to_dense();
+        test_to_dense();
+        test_mul_inv();
+        test_compare();
     }
 
-    return 0;
+    return EXIT_SUCCESS;
 }

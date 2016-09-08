@@ -3,25 +3,22 @@
 
 #include "config.h"
 
-void kem_keypair(
-    word_t  *pub_key,
-    index_t *priv_key);
+/** Generate a random keypair */
+void kem_keypair(word_t (*pub_key)[POLY_WORDS],
+                 index_t (*priv_key)[POLY_WEIGHT]);
 
-/** Generate a random error vector of weight ERROR_WEIGHT */
-void kem_gen_error(
-    word_t *error);
+/** Generate a random error vector */
+void kem_gen_error(word_t (*error)[POLY_WORDS]);
 
-/** Encrypt the error.
+/** Encrypt the error
  * 
- * \param[out] pub_syn  Resulting public syndrome (ciphertext)
- * \param[in]  error    (Dense) error polynomial (plaintext)
- * \param[in]  pub_key  Systematic QC-MPDC parity-check matrix,
- *                      represented with polynomials (public key)
+ * \param[out] pub_syn  Public syndrome (ciphertext)
+ * \param[in]  error    Error (plaintext)
+ * \param[in]  pub_key  Systematic QC-MDPC code (public key)
  */
-void kem_encrypt(
-          word_t *pub_syn,
-    const word_t *error,
-    const word_t *pub_key);
+void kem_encrypt(word_t *pub_syn,
+                 const word_t (*error)[POLY_WORDS],
+                 const word_t (*pub_key)[POLY_WORDS]);
 
 /** Decrypt the error.
  * 
@@ -30,16 +27,14 @@ void kem_encrypt(
  * failure does not leak through the error code and the implementation
  * is IND-CCA secure.
  *
- * \param[out] error     Resulting error (plaintext)
+ * \param[out] error     Error (plaintext)
  * \param[in]  pub_syn   Public syndrome (ciphertext)
- * \param[in]  priv_key  QC-MDPC parity-check matrix, represented with
- *                       polynomials (private key)
+ * \param[in]  priv_key  QC-MDPC code (private key)
  * 
- * \return error code: (decoding successful: 0 : -1)
+ * \return error code    (decoding successful ? 0 : -1)
  */
-int kem_decrypt(
-          word_t  *error,
-    const word_t  *pub_syn,
-    const index_t *priv_key);
+int kem_decrypt(word_t (*error)[POLY_WORDS],
+                const word_t *pub_syn,
+                const index_t (*priv_key)[POLY_WEIGHT]);
 
 #endif /* NIEDERREITER_KEM_H */

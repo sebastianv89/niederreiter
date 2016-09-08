@@ -3,13 +3,12 @@
 
 #include "config.h"
 
-/* TODO: documentation */
-/* TODO: add lengths to interface? */
-
+/** Generate random keypair */
 void crypto_kex_keypair(
           unsigned char *pub_key,
-          index_t       *priv_key);
+          index_t       (*priv_key)[POLY_WEIGHT]);
 
+/** Generate random secret key and encrypt using */
 void crypto_kex_encrypt(
           unsigned char *ct,
           unsigned char *sec_key,
@@ -18,6 +17,6 @@ void crypto_kex_encrypt(
 int crypto_kex_encrypt_open(
           unsigned char *sec_key,
     const unsigned char *ct,
-    const index_t       *priv_key);
+    const index_t       (*priv_key)[POLY_WEIGHT]);
 
 #endif /* NIEDERREITER_KEX_H */

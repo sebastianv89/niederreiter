@@ -12,7 +12,7 @@ int crypto_encrypt(
 
 int crypto_encrypt_open(
           unsigned char *msg, unsigned long long *msg_len,
-    const unsigned char *ct,  unsigned long long ct_len,
+    const unsigned char *ct,  unsigned long long  ct_len,
     const unsigned char *priv_key);
 
 #endif /* NIEDERREITER_ENCRYPT_H */

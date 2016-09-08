@@ -11,8 +11,8 @@ int crypto_encrypt_keypair(
     unsigned char *pub_key,
     unsigned char *priv_key)
 {
-    word_t sys_par_ch[PUBLIC_KEY_WORDS];
-    index_t par_ch[PRIVATE_KEY_WEIGHT];
+    word_t sys_par_ch[NUMBER_OF_POLYS - 1][POLY_WORDS];
+    index_t par_ch[NUMBER_OF_POLYS][POLY_WEIGHT];
 
     kem_keypair(sys_par_ch, par_ch);
 
@@ -27,7 +27,7 @@ int crypto_encrypt(
     const unsigned char *msg, unsigned long long  msg_len,
     const unsigned char *pub_key)
 {
-    word_t error[ERROR_WORDS];
+    word_t error[NUMBER_OF_POLYS][POLY_WORDS];
     unsigned char error_bytes[ERROR_BYTES];
     unsigned char sec_key[SECRET_KEY_BYTES];
     unsigned char *dem_ct = ct + POLY_BYTES;

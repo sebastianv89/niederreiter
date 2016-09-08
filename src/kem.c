@@ -1,8 +1,73 @@
-#include <stdlib.h>
-
 #include "kem.h"
 #include "config.h"
 #include "poly.h"
+#include "poly_sparse.h"
+#include "error.h"
+
+/* Convert the partiycheck matrix into a systematic one. */
+void kem_to_systematic(word_t (*sys_par_ch)[POLY_WORDS],
+                       const word_t *inv,
+                       const index_t (*par_ch)[POLY_WEIGHT]) {
+    size_t i;
+    for (i = 0; i < NUMBER_OF_POLYS - 1; ++i) {
+        poly_sparse_mul(sys_par_ch[i], inv, par_ch[i]);
+    }
+}
+
+/* Transpose the parity check matrix (except for the last block), so
+ * that it becomes possible to iterate over the columns (instead of
+ * the rows).
+ */ 
+void kem_transpose_privkey(index_t (*par_ch)[POLY_WEIGHT]) {
+    size_t i;
+    for (i = 0; i < NUMBER_OF_POLYS - 1; ++i) {
+        poly_sparse_transpose(par_ch[i]);
+    }
+}
+
+/* generate the private key and compute the inverse of the last block */
+void kem_rand_par_ch(word_t *inv, index_t (*par_ch)[POLY_WEIGHT]) {
+    size_t i;
+    for (i = 0; i < NUMBER_OF_POLYS - 1; ++i) {
+        poly_sparse_rand(par_ch[i]);
+    }
+    do {
+        poly_sparse_rand(par_ch[i]);
+        poly_sparse_to_dense(inv, par_ch[i]);
+    } while (poly_inv(inv));
+}
+
+/* generate a random keypair */
+void kem_keypair(word_t (*pub_key)[POLY_WORDS], index_t (*priv_key)[POLY_WEIGHT]) {
+    word_t inv[POLY_WORDS];
+
+    kem_rand_par_ch(inv, priv_key);
+    kem_to_systematic(pub_key, inv, priv_key);
+    kem_transpose_privkey(priv_key);
+}
+
+/* generate a random error of weight `ERROR_WEIGHT` */
+void kem_gen_error(word_t (*error)[POLY_WORDS]) {
+    index_t error_sparse[ERROR_WEIGHT];
+	error_rand(error_sparse);
+    error_to_dense(error, error_sparse);
+}
+
+/* Possible optimization (if sparse multiplication can be optimized):
+ * use sparse error */
+void kem_encrypt(word_t *pub_syn,
+                 const word_t (*error)[POLY_WORDS],
+                 const word_t (*sys_par_ch)[POLY_WORDS]) {
+    word_t buf[POLY_WORDS];
+    size_t i;
+    
+    poly_mul(pub_syn, sys_par_ch[0], error[0]);
+    for (i = 1; i < NUMBER_OF_POLYS - 1; ++i) {
+        poly_mul(buf, sys_par_ch[i], error[i]);
+        poly_inplace_add(pub_syn, buf);
+    }
+    poly_inplace_add(pub_syn, error[NUMBER_OF_POLYS - 1]);
+}
 
 /* Decode the provided (private) syndrome to find the corresponding
  * error vector.
@@ -12,189 +77,46 @@
  * \param[in]  syn_cand  Private syndrome
  * \param[in]  par_ch    Parity check polynomial
  */
-void decode(
-          word_t  *error,
-          word_t  *syn_cand,
-    const index_t *par_ch)
-{
+void decode(word_t (*error)[POLY_WORDS],
+            word_t *syn_cand,
+            const index_t (*par_ch)[POLY_WEIGHT]) {
     static const word_t threshold[ITERATIONS] = THRESHOLDS;
 
-	size_t i, j, k;
-	word_t upc; /* unsatisfied parity check */
+	size_t i, poly, word;
+	word_t upc; /* unsatisfied parity check counter */
 	word_t syn_update[POLY_WORDS];
-    word_t par_ch_dense[(NUMBER_OF_POLYS - 1) * POLY_WORDS];
-    word_t *block;
+    word_t par_ch_dense[NUMBER_OF_POLYS - 1][POLY_WORDS];
     word_t masked[POLY_WORDS];
-    word_t mask;
+    word_t bit, mask;
     
-    poly_zero(error, POLY_WORDS);
-
-    for (j = 0; j < NUMBER_OF_POLYS - 1; ++j) {
-        poly_to_dense(par_ch_dense + j * POLY_WORDS, par_ch + j * POLY_WEIGHT);
+    error_zero(error);
+    for (i = 0; i < NUMBER_OF_POLYS - 1; ++i) {
+        poly_sparse_to_dense(par_ch_dense[i], par_ch[i]);
     }
-
-    /*
-    printf("parity check matrix (sparse):\n");
-    print_poly_sparse(par_ch, NUMBER_OF_POLYS * POLY_WEIGHT);
-    printf("\nparity check matrix (dense):\n");
-    for (i = 0; i < NUMBER_OF_POLYS; ++i) {
-        print_poly_dense(par_ch_dense, POLY_WORDS);
-        printf("\n");
-    }
-    */
 
 	for (i = 0; i < ITERATIONS; ++i) {
-        unsigned int count = 0;
-        printf("threshold %"PRIu64":\n", threshold[i]);
-        poly_zero(syn_update, POLY_WORDS);
-        for (j = 0; j < NUMBER_OF_POLYS - 1; ++j) {
-            block = par_ch_dense + j * POLY_WORDS;
-            for (k = 0; k < POLY_BITS; ++k) {
-                poly_mask(masked, syn_cand, block);
-                upc = poly_hamming_weight(masked); //debug
-                if (upc >= threshold[i]) count++;
-                //printf("col %zu; hw %2"PRIu64"; ", j*POLY_BITS + k, upc);
-                mask = ((threshold[i] - upc - 1) >> (WORD_BITS - 1)) & 1;
-                //printf("flip %016"PRIx64"; ", mask);
-                poly_flip(error, (index_t)(j * POLY_WORDS + k), mask);
-                mask = -mask;
-                //printf("mask %016"PRIx64"; ", mask);
-                poly_add_masked(syn_update, block, mask);
-                poly_inplace_mul_x_modG(block);
-                //printf("\n");
+        poly_zero(syn_update);
+        for (poly = 0; poly < NUMBER_OF_POLYS - 1; ++poly) {
+            for (word = 0; word < POLY_WORDS; ++word) {
+                for (bit = 1; bit != 0; bit <<= 1) {
+                    poly_mask(masked, syn_cand, par_ch_dense[poly]);
+                    upc = poly_hamming_weight(masked);
+                    mask = -(((threshold[i] - upc - 1) >> (WORD_BITS - 1)) & 1);
+                    error[poly][word] ^= bit & mask;
+                    poly_inplace_add_masked(syn_update, par_ch_dense[poly], mask);
+                    poly_inplace_mulx_modG(par_ch_dense[poly]);
+                }
             }
         }
-        printf("potential erros found: %u\n", count);
-        poly_add(syn_cand, syn_cand, syn_update, POLY_WORDS);
-
-        /*
-        printf("syndrome update (hw %"PRIu64")\n", poly_hamming_weight(syn_update));
-        print_poly_dense(syn_update, POLY_WORDS);
-        printf("\nsyndrome (hw %"PRIu64"):\n", poly_hamming_weight(syn_cand));
-        print_poly_dense(syn_cand, POLY_WORDS);
-        printf("\nerror:\n");
-        print_poly_dense(error, ERROR_WORDS);
-        printf("\n");
-        */
+        poly_inplace_add(syn_cand, syn_update);
 	}
 }
 
-void kem_keypair(
-    word_t  *pub_key,
-    index_t *priv_key)
-{
-    size_t i;
-    word_t inverse[POLY_WORDS];
-
-    for (i = 0; i < NUMBER_OF_POLYS - 1; ++i) {
-        poly_gen_sparse(priv_key + i * POLY_WEIGHT, TYPE_POLY);
-    }
-
-    do {
-        poly_gen_sparse(priv_key + i * POLY_WEIGHT, TYPE_POLY);
-        poly_to_dense(inverse, priv_key + i * POLY_WEIGHT);
-    } while (poly_inv(inverse));
-    
-    /*
-    {
-        word_t one[POLY_WORDS];
-        word_t last_block[POLY_WORDS];
-        poly_to_dense(last_block, priv_key + i * POLY_WEIGHT);
-        poly_mul(one, inverse, last_block);
-        
-        printf("last block:\n");
-        print_poly_sparse(priv_key + i * POLY_WEIGHT, POLY_WEIGHT);
-        printf("\ninverse:\n");
-        print_poly_dense(inverse, POLY_WORDS);
-        printf("\none:\n");
-        print_poly_dense(one, POLY_WORDS);
-        printf("\n");
-    }
-    */
-
-    for (i = 0; i < NUMBER_OF_POLYS - 1; ++i) {
-        poly_sparse_mul(pub_key + i * POLY_WORDS,
-                        inverse,
-                        priv_key + i * POLY_WEIGHT);
-    }
-
-    for (i = 0; i < NUMBER_OF_POLYS - 1; ++i) {
-        poly_transpose(priv_key + i * POLY_WEIGHT);
-    }
-}
-
-void kem_gen_error(word_t *error)
-{
-    index_t error_sparse[ERROR_WEIGHT];
-	poly_gen_sparse(error_sparse, TYPE_ERROR);
-    error_to_dense(error, error_sparse);
-}
-
-/* Possible optimization: use sparse error and multiply using that */
-void kem_encrypt(
-          word_t *pub_syn,
-    const word_t *error,
-    const word_t *sys_par_ch)
-{
-    size_t i;
-    word_t buf[POLY_WORDS];
-    
-    /*
-    printf("public syndrome = systematic parity check * error\n");
-    printf("systematic parity check:\n");
-    print_poly_dense(sys_par_ch, POLY_WORDS);
-    printf("\nerror:\n");
-    print_poly_dense(error, ERROR_WORDS);
-    printf("\n");
-    */
-
-    poly_mul(pub_syn, sys_par_ch, error);
-
-    /*
-    printf("first block:\n");
-    print_poly_dense(pub_syn, POLY_WORDS);
-    */
-
-    for (i = 1; i < NUMBER_OF_POLYS - 1; ++i) {
-        poly_mul(buf,
-                 sys_par_ch + i * POLY_WORDS,
-                 error + i * POLY_WORDS);
-        poly_add(pub_syn, pub_syn, buf, POLY_WORDS);
-
-        /*
-        printf("\nadding block:\n");
-        print_poly_dense(buf, POLY_WORDS);
-        printf("\nsum:\n");
-        print_poly_dense(pub_syn, POLY_WORDS);
-        */
-    }
-
-    poly_add(pub_syn,
-             pub_syn,
-             error + i * POLY_WORDS, POLY_WORDS);
-
-    /*
-    printf("\nadding (last block):\n");
-    print_poly_dense(error + i * POLY_WORDS, POLY_WORDS);
-    printf("public syndrome (ciphertext, hw %"PRIu64")\n", poly_hamming_weight(pub_syn));
-    print_poly_dense(pub_syn, POLY_WORDS);
-    printf("\n");
-    */
-}
-
-
-int kem_decrypt(
-          word_t  *error,
-    const word_t  *pub_syn,
-    const index_t *priv_key)
-{
+int kem_decrypt(word_t (*error)[POLY_WORDS],
+                const word_t *pub_syn,
+                const index_t (*priv_key)[POLY_WEIGHT]) {
 	word_t priv_syn[POLY_WORDS];
-
-	poly_sparse_mul(priv_syn,
-                    pub_syn,
-                    priv_key + (NUMBER_OF_POLYS - 1) * POLY_WEIGHT);
-    printf("pub syn hw: %"PRIu64"\n", poly_hamming_weight(pub_syn));
-    printf("priv syn hw: %"PRIu64"\n", poly_hamming_weight(priv_syn));
+	poly_sparse_mul(priv_syn, pub_syn, priv_key[NUMBER_OF_POLYS - 1]);
 	decode(error, priv_syn, priv_key);
-    return poly_is_zero(priv_syn, POLY_WORDS);
+    return poly_verify_zero(priv_syn);
 }
