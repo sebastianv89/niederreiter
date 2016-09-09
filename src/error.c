@@ -1,3 +1,5 @@
+#include <stddef.h>
+
 #include "randombytes.h"
 
 #include "error.h"
@@ -5,47 +7,16 @@
 #include "poly.h"
 #include "poly_sparse.h"
 
-/* err := 0 */
-void error_zero(word_t (*err)[POLY_WORDS]) {
+void err_zero(word_t (*err)[POLY_WORDS]) {
     size_t i;
     for (i = 0; i < NUMBER_OF_POLYS; ++i) {
         poly_zero(err[i]);
     }
 }
 
-/* Subtract `POLY_BITS` from all error indices.
- * Subtraction saturates to (unsigned) value -1.
- */
-void error_align(index_t *err) {
-    size_t i;
-    index_t mask;
-
-    for (i = 0; i < ERROR_WEIGHT; ++i) {
-        err[i] -= POLY_BITS;
-        mask = -(err[i] >> (INDEX_BITS - 1));
-        err[i] |= mask;
-    }
-}
-
-/* dense := sparse */
-void error_to_dense(word_t (*dense)[POLY_WORDS], const index_t *sparse) {
-    size_t i;
-    index_t aligned[ERROR_WEIGHT];
-
-    poly_sparse_copy(aligned, sparse);
-    poly_sparse_to_dense(dense[0], sparse);
-    dense[0][POLY_WORDS - 1] &= TAIL_MASK;
-    for (i = 1; i < NUMBER_OF_POLYS; ++i) {
-        error_align(aligned);
-        poly_sparse_to_dense(dense[i], aligned);
-        dense[i][POLY_WORDS - 1] &= TAIL_MASK;
-    }
-}
-
-/* rejection sampling */
-void error_rand(index_t *err) {
+void err_rand(index_t *err) {
     static const index_t MASK = ((INDEX_C(1) << ERROR_INDEX_BITS) - 1);
-    
+
     index_t buf[2 * ERROR_WEIGHT];
     index_t cand;
     size_t i, j, weight;
@@ -70,3 +41,29 @@ void error_rand(index_t *err) {
         }
     } while (weight < ERROR_WEIGHT);
 }
+
+void err_align(index_t *err) {
+    size_t i;
+    index_t mask;
+
+    for (i = 0; i < ERROR_WEIGHT; ++i) {
+        err[i] -= POLY_BITS;
+        mask = -(err[i] >> (INDEX_BITS - 1));
+        err[i] |= mask;
+    }
+}
+
+void err_to_dense(word_t (*dense)[POLY_WORDS], const index_t *sparse) {
+    size_t i;
+    index_t aligned[ERROR_WEIGHT];
+
+    polsp_copy(aligned, sparse);
+    polsp_to_dense(dense[0], sparse);
+    dense[0][POLY_WORDS - 1] &= TAIL_MASK;
+    for (i = 1; i < NUMBER_OF_POLYS; ++i) {
+        err_align(aligned);
+        polsp_to_dense(dense[i], aligned);
+        dense[i][POLY_WORDS - 1] &= TAIL_MASK;
+    }
+}
+

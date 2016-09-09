@@ -1,26 +1,37 @@
 - Implementation (see the TODO's that are sprinkled everywhere)
 - Testing
-  - Self-test (constants etc)
-  - Comparison with python reference implementation
+  - Self-test
+    - sensible constants
+      - r prime
+      - index bits fit (need a spare bit!)
+      - 
+    - composition == identity functions    
+      - pack/unpack
+      - f * (1/f)
+      - enc/dec
+        - KEM
+        - KEM/DEM
+    - compare const-time functions with non-const time functions
+      - xgcd
+      - poly_compare
+      - 
+  - Comparison with sage reference implementation
 - README
 - LICENSE
 - Documentation
   - Doxygen
 - Makefile
-- C-style comments only (no //)
-- Remove the signed_word_t type:
-  - Bitwise operations are only defined on unsigned type,
-    signed shift operations are implementation dependent and
-    can lead to unspecified behaviour.
 - The implementation should cover two designs:
   - ANSI C / Supercop
     - main function: encryption (KEM/DEM)
     - use crypto_uintN types (N \in {8, 16, 32, 64})
     - randombytes.h
+    - unsigned long long for indexing 
   - OQS
     - main function: key-exchange (KEM)
     - use inttypes.h (size \in {8, 16, 32, 64})
     - oqs/randombytes.h
+    - size_t for indexing
   - Although more combinations of the above choices are possible,
     they are not covered by the different settings that can be
     specified with preprocessor definitions and must be manually
@@ -28,3 +39,4 @@
   - This does not cover the optimization of clmul.
     - Preferably, the compiler detects if clmul exists on the target
       platform and falls back to a slower implementation if necesary.
+- #ifdef __cplusplus; extern c; #endif (?)

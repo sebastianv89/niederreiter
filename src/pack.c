@@ -1,4 +1,4 @@
-#include <string.h>
+#include <stddef.h>
 
 #include "pack.h"
 #include "config.h"
@@ -71,7 +71,7 @@ void pack_error(unsigned char *dest, const word_t (*src)[POLY_WORDS]) {
     }
 }
 
-/* Hardcoded for INDEX_BYTES == 2 */
+/* Hard coded for INDEX_BYTES == 2 */
 void pack_indices(unsigned char *dest, const index_t *src, size_t weight) {
     size_t i;
     for (i = 0; i < weight/2; ++i) {
@@ -80,7 +80,7 @@ void pack_indices(unsigned char *dest, const index_t *src, size_t weight) {
     }
 }
 
-/* Hardcoded for INDEX_BYTES == 2 */
+/* Hard coded for INDEX_BYTES == 2 */
 void unpack_indices(index_t *dest, const unsigned char *src, size_t weight) {
     size_t i;
     for (i = 0; i < weight/2; ++i) {

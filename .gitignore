@@ -2,4 +2,5 @@
 *.a
 *.so
 /obj
-/src/endian.h
+/.cproject
+/.project

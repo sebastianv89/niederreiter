@@ -5,6 +5,7 @@
 #include "config.h"
 #include "error.h"
 #include "poly_sparse.h"
+#include "test/util.h"
 
 bool is_prime(uintmax_t n) {
     uintmax_t i;

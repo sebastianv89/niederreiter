@@ -1,9 +1,11 @@
+#include <stddef.h>
+
 #include "randombytes.h"
 
 #include "poly.h"
 #include "config.h"
 
-/* 
+/*
  * There's quite some room for improvements in assembly, unless the
  * compiler is already very clever. Having access to the carry flag
  * could speed up multiplications and divisions by x. Being able to
@@ -11,15 +13,6 @@
  * the multiplication.
  */
 
-/* f := g */
-void poly_copy(word_t *f, const word_t *g) {
-    size_t i;
-    for (i = 0; i < POLY_WORDS; ++i) {
-        f[i] = g[i];
-    }
-}
-
-/* f := 0 */
 void poly_zero(word_t *f) {
     size_t i;
     for (i = 0; i < POLY_WORDS; ++i) {
@@ -27,7 +20,6 @@ void poly_zero(word_t *f) {
     }
 }
 
-/* f := 1 */
 void poly_one(word_t *f) {
     size_t i;
     f[0] = 1;
@@ -36,7 +28,6 @@ void poly_one(word_t *f) {
     }
 }
 
-/* f := G */
 void poly_G(word_t *f) {
     size_t i;
     f[0] = 1;
@@ -46,7 +37,13 @@ void poly_G(word_t *f) {
     f[i] = WORD_C(1) << TAIL_BITS;
 }
 
-/* f == 0 ? 0 : -1 */
+void poly_copy(word_t *f, const word_t *g) {
+    size_t i;
+    for (i = 0; i < POLY_WORDS; ++i) {
+        f[i] = g[i];
+    }
+}
+
 int poly_verify_zero(const word_t *f) {
     size_t i, shift;
     unsigned char nonzero_bits = 0;
@@ -63,10 +60,6 @@ int poly_verify_zero(const word_t *f) {
     return (((nonzero_bits - 1) >> 8) & 1) - 1;
 }
 
-/* f == 1
- * 
- * \warning Not in constant time
- */
 int poly_is_one(const word_t *f) {
     size_t i;
 
@@ -93,7 +86,7 @@ word_t poly_hamming_weight(const word_t *f)
     word_t total = 0;
     word_t wc;
     size_t i;
-    
+
     for (i = 0; i < POLY_WORDS; ++i) {
         wc   = f[i];
         wc  -= (wc >> 1) & MASK0;
@@ -107,7 +100,6 @@ word_t poly_hamming_weight(const word_t *f)
     return total;
 }
 
-/* f := g + h */
 void poly_add(word_t *f, const word_t *g, const word_t *h) {
     size_t i;
     for (i = 0; i < POLY_WORDS; ++i) {
@@ -115,7 +107,6 @@ void poly_add(word_t *f, const word_t *g, const word_t *h) {
     }
 }
 
-/* f += g */
 void poly_inplace_add(word_t *f, const word_t *g) {
     size_t i;
     for (i = 0; i < POLY_WORDS; ++i) {
@@ -123,7 +114,6 @@ void poly_inplace_add(word_t *f, const word_t *g) {
     }
 }
 
-/* f := g & mask */
 void poly_mask(word_t *f, const word_t *g, const word_t *mask) {
     size_t i;
     for (i = 0; i < POLY_WORDS; ++i) {
@@ -131,7 +121,6 @@ void poly_mask(word_t *f, const word_t *g, const word_t *mask) {
     }
 }
 
-/* f += g & mask */
 void poly_inplace_add_masked(word_t *f, const word_t *g, word_t mask) {
     size_t i;
     for (i = 0; i < POLY_WORDS; ++i) {
@@ -139,11 +128,10 @@ void poly_inplace_add_masked(word_t *f, const word_t *g, word_t mask) {
     }
 }
 
-/* f *= x */
 void poly_inplace_mulx(word_t *f) {
     size_t i;
     word_t carry, tmp;
-    
+
     carry = f[0] >> (WORD_BITS - 1);
     f[0] <<= 1;
     for (i = 1; i < POLY_WORDS - 1; ++i) {
@@ -156,7 +144,6 @@ void poly_inplace_mulx(word_t *f) {
     f[i] |= carry;
 }
 
-/* f := g * x mod G */
 void poly_mulx_modG(word_t *f, const word_t *g) {
     size_t i;
 
@@ -173,11 +160,10 @@ void poly_mulx_modG(word_t *f, const word_t *g) {
 #endif
 }
 
-/* f := f * x mod G */
 void poly_inplace_mulx_modG(word_t *f) {
     size_t i;
     word_t carry, tmp;
-    
+
     carry = f[POLY_WORDS - 1] >> (TAIL_BITS - 1);
     for (i = 0; i < POLY_WORDS - 1; ++i) {
         tmp = f[i] >> (WORD_BITS - 1);
@@ -194,7 +180,6 @@ void poly_inplace_mulx_modG(word_t *f) {
 #endif
 }
 
-/* f := g / x */
 void poly_divx(word_t *f, const word_t *g) {
     size_t i;
 
@@ -204,7 +189,6 @@ void poly_divx(word_t *f, const word_t *g) {
     f[i] = g[i] >> 1;
 }
 
-/* f := g / x mod G */
 void poly_divx_modG(word_t *f, const word_t *g) {
     size_t i;
     word_t carry;
@@ -225,7 +209,7 @@ void poly_divx_modG(word_t *f, const word_t *g) {
  *
  * g is the result of a non-reduced multiplication: it is assumed to
  * have 2*`POLY_WORDS`-1 words.
- */ 
+ */
 void poly_reduce(word_t *f, const word_t *g) {
     size_t i;
 
@@ -267,22 +251,10 @@ void poly_mul(word_t *f, const word_t *g, const word_t *h)
             poly_inplace_add_masked(res + i, lhs, lhs_mask);
         }
     }
-    
+
     poly_reduce(f, res);
 }
 
-
-/* *eq := f == g; *lt := f < g
- *
- * result as masks:
- *   *eq = (f == g ? -1 : 0)
- *   *lt = (f < g  ? -1 : 0)
- *
- * This function is used in the context of the xgcd.  For equality,
- * the polynomials need to be exactly the same.  To find out which
- * polynomial is greater, only the degree matters.  If the degrees
- * are equal, it does not matter what is returned in \p lt.
- */
 void poly_compare(word_t *eq, word_t *lt, const word_t *f, const word_t *g)
 {
     size_t word = POLY_WORDS - 1, shift;
@@ -313,16 +285,6 @@ void poly_compare(word_t *eq, word_t *lt, const word_t *f, const word_t *g)
     *lt = -(*lt);
 }
 
-/* Compute xgcd(f, G)
- *
- * Constant time implementation of the binary polynomial XGCD algorithm
- * The starting polynomial for g is constant: namely G.
- * 
- * \param[in]  f  polynomial (POLY_WORDS)
- * \param[in]  a  allocated memory (POLY_WORDS)
- * \param[out] f  gcd(f, G)
- * \param[out] a  parameter a in Bézout identity "gcd(x,y) = ax + by"
- */
 void poly_xgcd(word_t *f, word_t *a)
 {
     size_t i, j;
@@ -362,7 +324,7 @@ void poly_xgcd(word_t *f, word_t *a)
         mask_g_even = ~mask_g_odd;
         mask_f_gt_g = ~mask_f_lt_g;
         mask_not_done = ~mask_done;
-        
+
         mask_f2f   = mask_done     | (mask_f_odd  & (mask_g_even | mask_f_lt_g));
         mask_f2fx  = mask_not_done &  mask_f_even;
         mask_f2fgx = mask_not_done &  mask_f_odd  &  mask_g_odd  & mask_f_gt_g;
@@ -372,7 +334,7 @@ void poly_xgcd(word_t *f, word_t *a)
 
         /* Alternative. Minimizes bit operations, but it is probably
            faster to operate directly on the first masks to avoid
-           dependency chains. 
+           dependency chains.
         mask_f2fx  = ~mask_f_odd;                                // f := f/x
         mask_f2fgx = mask_f_odd & mask_g_odd & mask_f_gt_g;      // f := (f^g)/x
         mask_g2g   = mask_f2fx | mask_f2fgx;                     // g := g
@@ -390,7 +352,6 @@ void poly_xgcd(word_t *f, word_t *a)
     }
 }
 
-/* f := 1/f (if it exists, else return error -1 */
 int poly_inv(word_t *f)
 {
     word_t inv[POLY_WORDS];
@@ -402,58 +363,3 @@ int poly_inv(word_t *f)
     }
     return -1;
 }
-
-#if defined(POLY_MAIN)
-
-#include "debug.h"
-#include "assert.h"
-
-/* TODO: move this to a test-case */
-
-int main(void) {
-    word_t f[POLY_WORDS], g[POLY_WORDS], h[POLY_WORDS];
-    word_t h_inv[POLY_WORDS];
-    index_t f_sparse[POLY_BITS], g_sparse[POLY_WEIGHT], h_sparse[POLY_WEIGHT];
-    size_t f_weight;
-
-    poly_gen_sparse(g_sparse, TYPE_POLY);
-    poly_gen_sparse(h_sparse, TYPE_POLY);
-    poly_to_dense(g, g_sparse);
-    poly_to_dense(h, h_sparse);
-    poly_mul(f, g, h);
-    poly_to_sparse(f_sparse, &f_weight, f);
-    
-    printf("g: ");
-    print_poly_sparse(g_sparse, POLY_WEIGHT);
-    printf("\n");
-    print_poly_dense(g, POLY_WORDS);
-    printf("\nh: ");
-    print_poly_sparse(h_sparse, POLY_WEIGHT);
-    printf("\n");
-    print_poly_dense(h, POLY_WORDS);
-    printf("\nf = g*h:\n");
-    print_poly_sparse(f_sparse, f_weight);
-    printf("\n");
-    print_poly_dense(f, POLY_WORDS);
-    printf("\n");
-    
-    poly_copy(h_inv, h, POLY_WORDS);
-    if (poly_inv(h_inv)) {
-        printf("oops, h not invertible\n");
-        return -1;
-    }
-    poly_mul(f, h, h_inv);
-
-    printf("1/h: ");
-    poly_to_sparse(f_sparse, &f_weight, h_inv);
-    print_poly_sparse(f_sparse, f_weight);
-    printf("\n");
-    print_poly_dense(h_inv, POLY_WORDS);
-    printf("\nf = h/h:\n");
-    print_poly_dense(f, POLY_WORDS);
-    printf("\n");
-    
-    return 0;
-}
-
-#endif /* POLY_MAIN */

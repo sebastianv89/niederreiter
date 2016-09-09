@@ -12,7 +12,7 @@
 #include "poly.h"
 #include "poly_sparse.h"
 #include "error.h"
-#include "debug.h"
+#include "util.h"
 
 static bool verbose = false;
 
@@ -45,7 +45,7 @@ struct test_data {
 void write_data(FILE *fout, const struct test_data *data) {
     unsigned char buf[PUBLIC_KEY_BYTES];
     uint16_t k, e;
-    
+
     buf[0] = (unsigned char)(data->nr_of_keys >> 8);
     buf[1] = (unsigned char)(data->nr_of_keys);
     fwrite(buf, INDEX_BYTES, 1, fout);
@@ -93,7 +93,7 @@ struct test_data *parse_data(FILE *fin) {
             index_t error_sparse[ERROR_WEIGHT];
             fread(buf, ERROR_WEIGHT * INDEX_BYTES, 1, fin);
             unpack_error_sparse(error_sparse, buf);
-            error_to_dense(err->error, error_sparse);
+            err_to_dense(err->error, error_sparse);
             fread(buf, POLY_BYTES, 1, fin);
             unpack_syndrome(err->pub_syn, buf);
         }
@@ -105,7 +105,7 @@ struct test_data *parse_data(FILE *fin) {
 struct test_data *rand_data(unsigned int nr_of_keys, unsigned int nr_of_errs) {
     size_t k, e;
     struct test_data *data;
-    
+
     data = malloc(sizeof(struct test_data));
     data->nr_of_keys = nr_of_keys;
     data->keys = malloc(nr_of_keys * sizeof(struct test_key));
@@ -165,9 +165,8 @@ void test_with_data(struct test_data *data) {
         int inv_failed;
         struct test_key *key = &data->keys[k];
         kem_transpose_privkey(key->priv_key);
-        poly_sparse_to_dense(inv, key->priv_key[NUMBER_OF_POLYS - 1]);
+        polsp_to_dense(inv, key->priv_key[NUMBER_OF_POLYS - 1]);
         inv_failed = poly_inv(inv);
-        printf("%d\n", inv_failed);
         assert(!inv_failed);
         kem_to_systematic(pub_key, inv, key->priv_key);
         assert(pub_key_eq(pub_key, key->pub_key));
@@ -189,7 +188,7 @@ int main(int argc, char *argv[]) {
     unsigned int gen_keys = 1, gen_errs = 1;
     struct test_data *data = NULL;
 
-    while ((opt = getopt(argc, argv, "ndv")) != -1) {
+    while ((opt = getopt(argc, argv, "gkedv")) != -1) {
         switch (opt) {
         case 'g': gen_data = true; break;
         case 'k': gen_keys = (unsigned int)(atoi(optarg)); break;
@@ -198,13 +197,13 @@ int main(int argc, char *argv[]) {
         case 'v': verbose = true; break;
         }
     }
-    
-    if (gen_data) {
-        data = rand_data(gen_keys, gen_errs);
-        write_data(stdout, data);
-    } else if (random_data) {
+
+    if (random_data) {
         data = rand_data(gen_keys, gen_errs);
         test_with_data(data);
+    } else if (gen_data) {
+        data = rand_data(gen_keys, gen_errs);
+        write_data(stdout, data);
     } else {
         data = parse_data(stdin);
         test_with_data(data);
@@ -212,6 +211,6 @@ int main(int argc, char *argv[]) {
 
     free_data(data);
     data = NULL;
-        
+
     return EXIT_SUCCESS;
 }

@@ -1,7 +1,11 @@
 #include "crypto_hash_sha512.h"
-#include "crypto_encrypt.h"
 
+#ifdef SUPERCOP_BUILD
+#include "crypto_encrypt.h"
+#else
 #include "encrypt.h"
+#endif
+
 #include "config.h"
 #include "pack.h"
 #include "kem.h"
@@ -32,8 +36,8 @@ int crypto_encrypt(
     unsigned char sec_key[SECRET_KEY_BYTES];
     unsigned char *dem_ct = ct + POLY_BYTES;
     unsigned long long dem_ct_len;
-    word_t syndrome[SYNDROME_WORDS];
-    word_t sys_par_ch[PUBLIC_KEY_WORDS];
+    word_t syndrome[POLY_WORDS];
+    word_t sys_par_ch[NUMBER_OF_POLYS - 1][POLY_WORDS];
 
     unpack_pub_key(sys_par_ch, pub_key);
 
@@ -55,55 +59,21 @@ int crypto_encrypt_open(
     const unsigned char *priv_key)
 {
     int ret_val;
-    word_t error[ERROR_WORDS];
+    word_t error[NUMBER_OF_POLYS][POLY_WORDS];
     word_t syndrome[POLY_WORDS];
-    index_t par_ch[PRIVATE_KEY_WEIGHT];
+    index_t par_ch[NUMBER_OF_POLYS][POLY_WEIGHT];
     unsigned char error_bytes[ERROR_BYTES];
     unsigned char sec_key[SECRET_KEY_BYTES];
     const unsigned char *dem_ct = ct + POLY_BYTES;
     unsigned long long dem_ct_len = ct_len - POLY_BYTES;
-    
+
     unpack_syndrome(syndrome, ct);
     unpack_priv_key(par_ch, priv_key);
-    
+
     ret_val = kem_decrypt(error, syndrome, par_ch);
     pack_error(error_bytes, error);
     crypto_hash_sha512(sec_key, error_bytes, ERROR_BYTES);
     ret_val |= dem_decrypt(msg, msg_len, dem_ct, dem_ct_len, sec_key);
-    
+
     return ret_val;
 }
-
-
-#if defined(ENCRYPT_MAIN)
-
-#include "debug.h"
-
-#define MSG_BYTES 13
-#define CT_LEN (MSG_BYTES + crypto_hash_sha512_BYTES + SYNDROME_BYTES)
-
-int main(void) {
-    unsigned char pub_key[PUBLIC_KEY_BYTES];
-    unsigned char priv_key[PRIVATE_KEY_BYTES];
-    unsigned char msg[MSG_BYTES] = "Hello World!";
-    unsigned long long ct_len = CT_LEN;
-    unsigned char ct[CT_LEN];
-    unsigned long long pt_len;
-    unsigned char pt[MSG_BYTES];
-    
-    crypto_encrypt_keypair(pub_key, priv_key);
-    crypto_encrypt(ct, &ct_len, msg, MSG_BYTES, pub_key);
-    crypto_encrypt_open(pt, &pt_len, ct, ct_len, priv_key);
-    
-    printf("msg: %s (", msg);
-    print_bytes(msg, MSG_BYTES);
-    printf(")\nct(%llu): ", ct_len);
-    print_bytes(ct, ct_len);
-    printf("\npt(%llu): %s (", pt_len, pt);
-    print_bytes(pt, pt_len);
-    printf(")\n");
-    
-    return 0;
-}
-
-#endif /* ENCRYPT_MAIN */

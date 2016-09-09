@@ -1,169 +1,60 @@
-CC = clang
-
 SRC_DIR = src
 OBJ_DIR = obj
-TEST_DIR = test
+TEST_DIR = $(SRC_DIR)/test
 NACL_DIR = ./lib/nacl-20110221/build/ThinkPadL440
 NACL_INC_DIR = $(NACL_DIR)/include/amd64
 NACL_LIB_DIR = $(NACL_DIR)/lib/amd64
+SC_DIR = $(OBJ_DIR)/supercop
+SC_REF_DIR = $(SC_DIR)/crypto_encrypt/nr_qc_mdpc/ref
 INC_DIRS = $(SRC_DIR) $(NACL_INC_DIR)
 
-CFLAGS  = -g -std=c99 -O3 -fomit-frame-pointer
-CFLAGS += -DWORD_BITS=64
-CFLAGS += -DOQS_BUILD
-CFLAGS += -Weverything -Wno-missing-prototypes -Wno-padded
-CFLAGS += $(INC_DIRS:%=-I%)
+CC = clang
+
+CFLAGS  = -g -std=c99
+CFLAGS += -Weverything -Wno-padded -Wdocumentation
+#CFLAGS += -O3 -fomit-frame-pointer
+CFLAGS += -DWORD_BITS=64 -USUPERCOP_BUILD
+CFLAGS += $(addprefix -I,$(INC_DIRS))
 
 LDFLAGS = -L$(NACL_LIB_DIR)
 LDLIBS = -lnacl
 
-oqs_kex:
-	@echo TODO: $@
+SOURCES = $(wildcard $(SRC_DIR)/*.c)
+DEPS = $(SOURCES:.c=.h) $(SRC_DIR)/config.h
+OBJS = $(SOURCES:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
+SC_FILES = $(SOURCES) $(DEPS) $(SRC_DIR)/api.h
 
-supercop:
-	@echo TODO: $@
+ARCHIVE = libnrqcmdpc.a
+SUPERCOP = supercop.tar.gz
 
-encrypt: CFLAGS += -DENCRYPT_MAIN
-encrypt: \
-$(OBJ_DIR)/encrypt.o \
-$(OBJ_DIR)/pack.o \
-$(OBJ_DIR)/kem.o \
-$(OBJ_DIR)/dem.o \
-$(OBJ_DIR)/poly.o \
-$(OBJ_DIR)/poly_sparse.o \
-$(OBJ_DIR)/error.o \
-$(OBJ_DIR)/debug.o \
-$(NACL_LIB_DIR)/randombytes.o
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
+.PHONY: all
+all: $(ARCHIVE) $(SUPERCOP)
 
-kex: CFLAGS += -DKEX_MAIN
-kex: \
-$(OBJ_DIR)/kex.o \
-$(OBJ_DIR)/pack.o \
-$(OBJ_DIR)/kem.o \
-$(OBJ_DIR)/dem.o \
-$(OBJ_DIR)/poly.o \
-$(OBJ_DIR)/poly_sparse.o \
-$(OBJ_DIR)/error.o \
-$(OBJ_DIR)/debug.o \
-$(NACL_LIB_DIR)/randombytes.o
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
+$(ARCHIVE): $(OBJS)
+	echo $(OBJS)
+	ar cr $@ $^
+	ranlib $@
 
-poly: CFLAGS += -DPOLY_MAIN
-poly: \
-$(OBJ_DIR)/poly.o \
-$(OBJ_DIR)/debug.o \
-$(NACL_LIB_DIR)/randombytes.o
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
+$(SUPERCOP): $(SC_FILES:$(SRC_DIR)/%=$(SC_REF_DIR)/%)
+	(cd $(SC_DIR) && tar cvzf $@ *)
+	mv $(SC_DIR)/$@ ./
 
-test_poly: \
-$(OBJ_DIR)/test_poly.o \
-$(OBJ_DIR)/poly.o \
-$(OBJ_DIR)/debug.o \
-$(NACL_LIB_DIR)/randombytes.o
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
+$(SC_REF_DIR)/%: $(SRC_DIR)/% | $(SC_REF_DIR)
+	unifdef -DSUPERCOP_BUILD $< | sed 's/WORD_BITS/64/g' > $@
 
-test_kem: \
-$(OBJ_DIR)/test_kem.o \
-$(OBJ_DIR)/kem.o \
-$(OBJ_DIR)/pack.o \
-$(OBJ_DIR)/poly.o \
-$(OBJ_DIR)/poly_sparse.o \
-$(OBJ_DIR)/error.o \
-$(OBJ_DIR)/debug.o \
-$(NACL_LIB_DIR)/randombytes.o
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
+$(SC_REF_DIR):
+	mkdir -p $@
 
-$(OBJ_DIR)/encrypt.o: \
-$(SRC_DIR)/encrypt.c \
-$(SRC_DIR)/encrypt.h \
-$(SRC_DIR)/config.h \
-$(SRC_DIR)/debug.h \
-$(SRC_DIR)/pack.h \
-$(SRC_DIR)/kem.h \
-$(SRC_DIR)/dem.h
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
-$(OBJ_DIR)/kex.o: \
-$(SRC_DIR)/kex.c \
-$(SRC_DIR)/kex.h \
-$(SRC_DIR)/config.h \
-$(SRC_DIR)/debug.h \
-$(SRC_DIR)/pack.h \
-$(SRC_DIR)/kem.h
-	$(CC) -c $(CFLAGS) $< -o $@
-
-$(OBJ_DIR)/pack.o: \
-$(SRC_DIR)/pack.c \
-$(SRC_DIR)/pack.h \
-$(SRC_DIR)/config.h \
-$(SRC_DIR)/debug.h
-	$(CC) -c $(CFLAGS) $< -o $@
-
-$(OBJ_DIR)/kem.o: \
-$(SRC_DIR)/kem.c \
-$(SRC_DIR)/kem.h \
-$(SRC_DIR)/config.h \
-$(SRC_DIR)/debug.h \
-$(SRC_DIR)/poly.h \
-$(SRC_DIR)/poly_sparse.h \
-$(SRC_DIR)/error.h
-	$(CC) -c $(CFLAGS) $< -o $@
-
-$(OBJ_DIR)/dem.o: \
-$(SRC_DIR)/dem.c \
-$(SRC_DIR)/dem.h
-	$(CC) -c $(CFLAGS) $< -o $@
-
-$(OBJ_DIR)/poly.o: \
-$(SRC_DIR)/poly.c \
-$(SRC_DIR)/poly.h \
-$(SRC_DIR)/config.h \
-$(SRC_DIR)/debug.h
-	$(CC) -c $(CFLAGS) $< -o $@
-
-$(OBJ_DIR)/poly_sparse.o: \
-$(SRC_DIR)/poly_sparse.c \
-$(SRC_DIR)/poly_sparse.h \
-$(SRC_DIR)/config.h \
-$(SRC_DIR)/debug.h \
-$(SRC_DIR)/poly.h
-	$(CC) -c $(CFLAGS) $< -o $@
-
-$(OBJ_DIR)/error.o: \
-$(SRC_DIR)/error.c \
-$(SRC_DIR)/error.h \
-$(SRC_DIR)/config.h \
-$(SRC_DIR)/debug.h \
-$(SRC_DIR)/poly.h \
-$(SRC_DIR)/poly_sparse.h
-	$(CC) -c $(CFLAGS) $< -o $@
-
-$(OBJ_DIR)/debug.o: \
-$(SRC_DIR)/debug.c \
-$(SRC_DIR)/debug.h \
-$(SRC_DIR)/config.h
-	$(CC) -c $(CFLAGS) $< -o $@
-
-$(OBJ_DIR)/test_poly.o: \
-$(TEST_DIR)/poly.c \
-$(SRC_DIR)/poly.h \
-$(SRC_DIR)/config.h \
-$(SRC_DIR)/debug.h
-	$(CC) -c $(CFLAGS) $< -o $@
-
-$(OBJ_DIR)/test_kem.o: \
-$(TEST_DIR)/kem.c \
-$(SRC_DIR)/kem.h \
-$(SRC_DIR)/config.h \
-$(SRC_DIR)/pack.h \
-$(SRC_DIR)/poly.h \
-$(SRC_DIR)/poly_sparse.h \
-$(SRC_DIR)/error.h \
-$(SRC_DIR)/debug.h
-	$(CC) -c $(CFLAGS) $< -o $@
+.PHONY: check
+check: $(OBJS)
+	$(MAKE) -C $(TEST_DIR)
 
 .PHONY: clean
 clean:
-	rm -rf encrypt kex poly
-	rm -rf $(OBJ_DIR)/*.o
+	$(MAKE) -C $(TEST_DIR) clean
+	rm -rf $(OBJS)
+	rm -rf $(ARCHIVE)
+	rm -rf $(SC_DIR) supercop.tar.gz

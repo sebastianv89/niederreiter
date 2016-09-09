@@ -6,14 +6,22 @@
 /** \def POLY_INDEX_BITS ceil(log_2(POLY_BITS)) */
 #define POLY_INDEX_BITS 13
 
-/** f := g */
-void poly_sparse_copy(index_t *f, const index_t *g);
+/** f $= polynomial
+ *
+ * Length (in bits) = POLY_BITS
+ * Hamming weight = ERROR_WEIGHT
+ * Implemented with rejection sampling.
+ */
+void polsp_rand(index_t *f);
 
 /** f := g */
-void poly_sparse_to_dense(word_t *f, const index_t *g);
+void polsp_copy(index_t *f, const index_t *g);
+
+/** f := g */
+void polsp_to_dense(word_t *f, const index_t *g);
 
 /** f := g * h */
-void poly_sparse_mul(word_t *f, const word_t *g, const index_t *h);
+void polsp_mul(word_t *f, const word_t *g, const index_t *h);
 
 /** f := f^T
  *
@@ -21,14 +29,6 @@ void poly_sparse_mul(word_t *f, const word_t *g, const index_t *h);
  * corresponds to transposing the circular matrix that is represented
  * by the polynomial.
  */
-void poly_sparse_transpose(index_t *f);
-
-/** f $= polynomial
- *
- * Length (in bits) = POLY_BITS
- * Hamming weight = ERROR_WEIGHT
- * Implemented with rejection sampling.
- */
-void poly_sparse_rand(index_t *f);
+void polsp_transpose(index_t *f);
 
 #endif /* NIEDERREITER_POLY_SPARSE_H */

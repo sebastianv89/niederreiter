@@ -41,7 +41,7 @@
 
 /* TODO: implicit conversion between uint8_t and unsigned char */
 
-/* TODO: init rand with seed */
+/* TODO: init \p rand with seed */
 OQS_KEX *OQS_KEX_niederreiter_new(
           OQS_RAND *rand,
     const uint8_t   seed, const size_t seed_len)

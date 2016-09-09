@@ -3,7 +3,7 @@
 
 #include "config.h"
 
-/** Generate random keypair */
+/** Generate random key pair */
 void crypto_kex_keypair(
           unsigned char *pub_key,
           index_t       (*priv_key)[POLY_WEIGHT]);
