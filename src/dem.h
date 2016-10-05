@@ -20,4 +20,4 @@ int dem_decrypt(
     const unsigned char *ct,  unsigned long long ct_len,
     const unsigned char *sec_key);
 
-#endif /* INCLUDED_DEM_H */
+#endif /* NIEDERREITER_DEM_H */

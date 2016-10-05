@@ -1,10 +1,19 @@
 - Implementation (see the TODO's that are sprinkled everywhere)
+- Almost all size_t indices can be replaced with idx_t
+   - if idx_t can index all bits, then surely it can index all bytes
+   - unsigned char is always enough for POLY_COUNT (but should be
+     verified by a test)
+   - uint16_t is always enough for WEIGHT (ERROR and POLY) (but should
+     be verified by a test)
+- Change types
+  - pubkey_t -> sys_parch_t
+  - privkey_t -> parch_t
+- Index bits must be dynamic!
 - Testing
   - Self-test
     - sensible constants
       - r prime
       - index bits fit (need a spare bit!)
-      - 
     - composition == identity functions    
       - pack/unpack
       - f * (1/f)

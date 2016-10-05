@@ -25,7 +25,7 @@ int crypto_encrypt(
     const unsigned char *msg, unsigned long long  msg_len,
     const unsigned char *pub_key);
 
-/** Decrypt a message
+/** Verify/decrypt a message
  *
  * @param[out] msg       Plaintext
  * @param[out] msg_len   Plaintext length (in bytes)

@@ -5,47 +5,58 @@
 #include "kem.h"
 #include "pack.h"
 
-void crypto_kex_keypair(
+int crypto_kex_keypair(
         unsigned char *pub_key,
-        index_t       (*priv_key)[POLY_WEIGHT]) {
-    word_t sys_par_ch[NUMBER_OF_POLYS - 1][POLY_WORDS];
-    kem_keypair(sys_par_ch, priv_key);
-    pack_pub_key(pub_key, sys_par_ch);
+        unsigned char *priv_key) {
+    sys_par_ch_t spc;
+    par_ch_t pc;
+
+    kem_keypair(spc, pc);
+
+    pack_pubkey(pub_key, spc);
+    pack_privkey(priv_key, pc);
+    
+    return 0;
 }
 
-void crypto_kex_encrypt(unsigned char *ct,
-                        unsigned char *sec_key,
-                        const unsigned char *pub_key)
-{
-    word_t error[NUMBER_OF_POLYS][POLY_WORDS];
-    unsigned char error_bytes[ERROR_BYTES];
-    word_t syndrome[POLY_WORDS];
-    word_t sys_par_ch[NUMBER_OF_POLYS - 1][POLY_WORDS];
+int crypto_kex_encrypt(
+          unsigned char *sec_key,
+          unsigned char *ct,
+    const unsigned char *pub_key) {
+    unsigned char err_bytes[ERROR_BYTES];
+    error_t err;
+    poly_t pub_syn;
+    sys_par_ch_t spc;
 
-    unpack_pub_key(sys_par_ch, pub_key);
+    unpack_pubkey(spc, pub_key);
 
-    kem_gen_error(error);
-    kem_encrypt(syndrome, error, sys_par_ch);
-    pack_error(error_bytes, error);
-    crypto_hash_sha256(sec_key, error_bytes, ERROR_BYTES);
+    kem_gen_err(err);
+    kem_encrypt(pub_syn, err, spc);
+    pack_poly(ct, pub_syn);
 
-    pack_syndrome(ct, syndrome);
+    pack_err(err_bytes, err);
+    crypto_hash_sha256(sec_key, err_bytes, ERROR_BYTES);
+    
+    return 0;
 }
 
-int crypto_kex_encrypt_open(unsigned char *sec_key,
-                            const unsigned char *ct,
-                            const index_t (*priv_key)[POLY_WEIGHT])
-{
+int crypto_kex_encrypt_open(
+          unsigned char *sec_key,
+    const unsigned char *ct,
+    const unsigned char *priv_key) {
     int ret_val;
-    word_t error[NUMBER_OF_POLYS][POLY_WORDS];
-    unsigned char error_bytes[ERROR_BYTES];
-    word_t syndrome[POLY_WORDS];
+    unsigned char err_bytes[ERROR_BYTES];
+    error_t err = {{0}};
+    poly_t pub_syn;
+    par_ch_t pc;
 
-    unpack_syndrome(syndrome, ct);
+    unpack_poly(pub_syn, ct);
+    unpack_privkey(pc, priv_key);
 
-    ret_val = kem_decrypt(error, syndrome, priv_key);
-    pack_error(error_bytes, error);
-    crypto_hash_sha256(sec_key, error_bytes, ERROR_BYTES);
+    ret_val = kem_decrypt(err, pub_syn, pc);
+
+    pack_err(err_bytes, err);
+    crypto_hash_sha256(sec_key, err_bytes, ERROR_BYTES);
 
     return ret_val;
 }

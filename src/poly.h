@@ -1,3 +1,6 @@
+#ifndef NIEDERREITER_POLY_H
+#define NIEDERREITER_POLY_H
+
 /**! \file poly.h
  * Polynomial representation: The least significant bit of each word holds the
  * coefficient of the lowest degree. Words with a higher index hold
@@ -8,74 +11,69 @@
  * Polynomials are defined modulo G, where
  *   G = x^POLY_BITS - 1
  */
-#ifndef NIEDERREITER_POLY_H
-#define NIEDERREITER_POLY_H
 
-#include "config.h"
+#include "types.h"
 
 /** f := 0 */
-void poly_zero(word_t *f);
-
-/** f := 1 */
-void poly_one(word_t *f);
-
-/** f := G */
-void poly_G(word_t *f);
+void poly_zero(poly_t f);
 
 /** f := g */
-void poly_copy(word_t *f, const word_t *g);
+void poly_copy(poly_t f, const poly_t g);
 
 /** \return f == 0 ? 0 : -1 */
-int poly_verify_zero(const word_t *f);
+int poly_verify_zero(const poly_t f);
 
-/** \return f == 1 ? 1 : 0
+/** \return f == 0 ? 0 : -1
  *
  * \warning Not in constant time.
  */
-int poly_is_one(const word_t *f);
+int poly_verify_one(const poly_t f);
 
-/** \return hamming weight of f */
-word_t poly_hamming_weight(const word_t *f);
+/** \return hamming weight of \p f */
+limb_t poly_hamming_weight(const poly_t f);
 
-/** f := g + h */
-void poly_add(word_t *f, const word_t *g, const word_t *h);
-
-/** f += g */
-void poly_inplace_add(word_t *f, const word_t *g);
+/** f := g + h 
+ *
+ * Any subset of {f, g, h} may point to the same memory. Misaligned
+ * overlap in memory leads to erroneous behaviour.
+ */
+void poly_add(poly_t f, const poly_t g, const poly_t h);
 
 /** f := g & mask */
-void poly_mask(word_t *f, const word_t *g, const word_t *mask);
+void poly_mask(poly_t f, const poly_t g, const poly_t mask);
 
 /** f += g & mask
  *
  * Mask is extended to the length of \p g by repeating.
  */
-void poly_inplace_add_masked(word_t *f, const word_t *g, word_t mask);
+void poly_inplace_add_masked(poly_t f, const poly_t g, limb_t mask);
 
 /** f *= x */
-void poly_inplace_mulx(word_t *f);
+void poly_inplace_mulx(poly_t f);
 
-/** f := g * x mod G */
-void poly_mulx_modG(word_t *f, const word_t *g);
+/** f := g * x mod G
+ * 
+ * Equivalent to rotating the matrix row.
+ */
+void poly_mulx_modG(poly_t f, const poly_t g);
 
 /** f := f * x mod G */
-void poly_inplace_mulx_modG(word_t *f);
+void poly_inplace_mulx_modG(poly_t f);
 
 /** f := g / x */
-void poly_divx(word_t *f, const word_t *g);
+void poly_divx(poly_t f, const poly_t g);
 
 /** f := g / x mod G */
-void poly_divx_modG(word_t *f, const word_t *g);
+void poly_divx_modG(poly_t f, const poly_t g);
 
 /** f := g mod G
  *
  * \param g The result of non-reduced multiplication.
  */
-void poly_reduce(word_t *f, const word_t *g);
+void poly_reduce(poly_t f, const limb_t *g);
 
 /** f := g * h */
-void poly_mul(word_t *f, const word_t *g, const word_t *h);
-
+void poly_mul(poly_t f, const poly_t g, const poly_t h);
 
 /** Compare polynomials
  *
@@ -88,27 +86,27 @@ void poly_mul(word_t *f, const word_t *g, const word_t *h);
  * \param[out] lt f < g ? -1 : 0
  */
 void poly_compare(
-            word_t *eq,
-            word_t *lt,
-      const word_t *f,
-      const word_t *g);
+            poly_t eq,
+            poly_t lt,
+      const poly_t f,
+      const poly_t g);
 
 /** Compute xgcd(f, G)
  *
  * Constant time implementation of the binary polynomial XGCD algorithm
  * The starting polynomial for g is constant: namely G.
  *
- * \param f  in: polynomial (POLY_WORDS);
- *           out: gcd(f, G)
- * \param a  in: allocated memory (POLY_WORDS);
- *           out: Bézout coefficient of f
+ * \param[in,out] f  in:  Polynomial (POLY_LIMBS);
+ *                   out: GCD(f, G)
+ * \param[in,out] a  in:  One
+ *                   out: Bézout coefficient of f
  */
-void poly_xgcd(word_t *f, word_t *a);
+void poly_xgcd(poly_t f, poly_t a);
 
 /** f := 1/f
  *
  * \return inverse exists ? 0 : -1
  */
-int poly_inv(word_t *f);
+int poly_inv(poly_t f);
 
 #endif /* NIEDERREITER_POLY_H */

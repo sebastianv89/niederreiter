@@ -1,51 +1,53 @@
 #ifndef NIEDERREITER_KEM_H
 #define NIEDERREITER_KEM_H
 
-#include "config.h"
+#include "types.h"
+
+/** Generate the private key and compute the inverse of the last block */
+void kem_rand_par_ch(poly_t inv, par_ch_t priv_key);
 
 /** Convert the parity-check matrix into a systematic one. */
-void kem_to_systematic(word_t (*sys_par_ch)[POLY_WORDS],
-                       const word_t *inv,
-                       const index_t (*par_ch)[POLY_WEIGHT]);
+void kem_to_systematic(
+          sys_par_ch_t pub_key,
+    const poly_t       inv,
+    const par_ch_t     priv_key);
 
 /** Transpose the parity check matrix (except for the last block), so
- * that it becomes possible to iterate over the columns (instead of
+ * that it becomes efficient to iterate over the columns (instead of
  * the rows).
  */
-void kem_transpose_privkey(index_t (*par_ch)[POLY_WEIGHT]);
-
-/** generate the private key and compute the inverse of the last block */
-void kem_rand_par_ch(word_t *inv, index_t (*par_ch)[POLY_WEIGHT]);
+void kem_transpose_par_ch(par_ch_t priv_key);
 
 /** Generate a random key-pair */
-void kem_keypair(word_t (*pub_key)[POLY_WORDS],
-                 index_t (*priv_key)[POLY_WEIGHT]);
+void kem_keypair(sys_par_ch_t pub_key, par_ch_t priv_key);
 
 /** Generate a random error vector */
-void kem_gen_error(word_t (*error)[POLY_WORDS]);
+void kem_gen_err(error_t err);
 
 /** Encrypt the error
  *
  * \param[out] pub_syn  Public syndrome (ciphertext)
- * \param[in]  error    Error (plaintext)
+ * \param[in]  err      Error (plaintext)
  * \param[in]  pub_key  Systematic QC-MDPC code (public key)
  */
-void kem_encrypt(word_t *pub_syn,
-                 const word_t (*error)[POLY_WORDS],
-                 const word_t (*pub_key)[POLY_WORDS]);
+void kem_encrypt(syn_t pub_syn, error_t err, const sys_par_ch_t pub_key);
 
 /** Decode the provided (private) syndrome to find the corresponding
  * error vector.
  *
- * @param[out]    error     Resulting error vector
- * @param[in,out] syn_cand  in:  Private syndrome
- *                          out: Syndrome of resulting error vector:
- *                               zero upon success
- * @param[in]     par_ch    Parity check polynomial
+ * @param[in,out] err       in:  Zero
+ *                          out: Resulting error vector
+ * @param[in,out] priv_syn  in:  Private syndrome
+ *                          out: Syndrome of resulting error vector
+ *                               (zero upon success)
+ * @param[in]     priv_key  Parity check polynomial
  */
-void decode(word_t (*error)[POLY_WORDS],
-            word_t *syn_cand,
-            const index_t (*par_ch)[POLY_WEIGHT]);
+void kem_decode(error_t err, syn_t priv_syn, const par_ch_t priv_key);
+
+/* TODO: Tranposing the last block of the private key can be done inplace,
+ *       saving a small bit of memory.  The const qualifier will have to
+ *       be removed from the priv_key parameter in kem_decode and kem_decrypt
+ */
 
 /** Decrypt the error.
  *
@@ -54,14 +56,13 @@ void decode(word_t (*error)[POLY_WORDS],
  * failure does not leak through the error code and the implementation
  * is IND-CCA secure.
  *
- * \param[out] error     Error (plaintext)
- * \param[in]  pub_syn   Public syndrome (ciphertext)
- * \param[in]  priv_key  QC-MDPC code (private key)
+ * \param[in,out] err       in:  Zero
+ *                          out: Error (plaintext)
+ * \param[in]     pub_syn   Public syndrome (ciphertext)
+ * \param[in]     priv_key  QC-MDPC code (private key)
  *
- * \return error code    (decoding successful ? 0 : -1)
+ * \return failure code    (decoding successful ? 0 : -1)
  */
-int kem_decrypt(word_t (*error)[POLY_WORDS],
-                const word_t *pub_syn,
-                const index_t (*priv_key)[POLY_WEIGHT]);
+int kem_decrypt(error_t err, syn_t pub_syn, const par_ch_t priv_key);
 
 #endif /* NIEDERREITER_KEM_H */
