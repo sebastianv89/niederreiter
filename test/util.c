@@ -192,7 +192,7 @@ void error_to_sp_error(sp_error_t f, const error_t err) {
         }
     }
 }
-
+/*
 #if   LIMB_BITS == 8
 #define PRILIMB PRIx8
 #elif LIMB_BITS == 16
@@ -202,6 +202,7 @@ void error_to_sp_error(sp_error_t f, const error_t err) {
 #elif LIMB_BITS == 64
 #define PRILIMB PRIx64
 #endif
+*/
 
 #define PRIINDEX PRIu16
 
@@ -211,17 +212,19 @@ void error_to_sp_error(sp_error_t f, const error_t err) {
 
 int poly_to_str(char *str, const poly_t f) {
     int i, n = 0;
-    for (i = 0; i < POLY_LIMBS - 1; ++i) {
-        n += sprintf(str + n, "%0*" PRILIMB ", ", LIMB_BITS/4, f[i]);
+    unsigned char buf[POLY_BYTES];
+    pack_poly(buf, f);
+    for (i = 0; i < POLY_BYTES; ++i) {
+        n += sprintf(str + n, "%02x", buf[i]);
     }
-    n += sprintf(str + n, "%0*" PRILIMB " (hw = %lu)", LIMB_BITS/4, f[i], poly_hamming_weight(f));
+    
     return n;
 }
 
 int sp_poly_to_str(char *str, const sp_poly_t f) {
     int i, n = 0;
     for (i = 0; i < POLY_WEIGHT - 1; ++i) {
-        n += sprintf(str + n, "%" PRIINDEX ", ", f[i]);
+        n += sprintf(str + n, "%" PRIINDEX ",", f[i]);
     }
     n += sprintf(str + n, "%" PRIINDEX, f[i]);
     return n;
@@ -231,7 +234,7 @@ int error_to_str(char *str, const error_t err) {
     int i, n = 0;
     for (i = 0; i < POLY_COUNT - 1; ++i) {
         n += poly_to_str(str + n, err[i]);
-        n += sprintf(str + n, "; ");
+        n += sprintf(str + n, "\n");
     }
     n += poly_to_str(str + n, err[i]);
     return n;
@@ -258,7 +261,7 @@ int sys_par_ch_to_str(char *str, const sys_par_ch_t k) {
     int i, n = 0;
     for (i = 0; i < POLY_COUNT - 2; ++i) {
         n += poly_to_str(str + n, k[i]);
-        n += sprintf(str + n, "; ");
+        n += sprintf(str + n, "\n");
     }
     n += poly_to_str(str + n, k[POLY_COUNT - 2]);
     return n;
@@ -268,7 +271,7 @@ int par_ch_to_str(char *str, const par_ch_t k) {
     int i, n = 0;
     for (i = 0; i < POLY_COUNT - 1; ++i) {
         n += sp_poly_to_str(str + n, k[i]);
-        n += sprintf(str + n, "; ");
+        n += sprintf(str + n, "\n");
     }
     n += sp_poly_to_str(str + n, k[POLY_COUNT - 1]);
     return n;

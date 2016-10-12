@@ -1,6 +1,0 @@
-[submodule "lib/theft"]
-	path = lib/theft
-	url = https://github.com/silentbicycle/theft.git
-[submodule "lib/gf2x"]
-	path = lib/gf2x
-	url = https://scm.gforge.inria.fr/anonscm/git/gf2x/gf2x.git

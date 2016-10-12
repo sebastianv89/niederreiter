@@ -4,7 +4,7 @@
 #include "types.h"
 
 /** Generate the private key and compute the inverse of the last block */
-void kem_rand_par_ch(poly_t inv, par_ch_t priv_key);
+void kem_gen_par_ch(poly_t inv, par_ch_t priv_key);
 
 /** Convert the parity-check matrix into a systematic one. */
 void kem_to_systematic(
@@ -19,7 +19,7 @@ void kem_to_systematic(
 void kem_transpose_par_ch(par_ch_t priv_key);
 
 /** Generate a random key-pair */
-void kem_keypair(sys_par_ch_t pub_key, par_ch_t priv_key);
+void kem_gen_keypair(sys_par_ch_t pub_key, par_ch_t priv_key);
 
 /** Generate a random error vector */
 void kem_gen_err(error_t err);

@@ -7,7 +7,7 @@
 #include "sp_poly.h"
 #include "error.h"
 
-void kem_rand_par_ch(poly_t inv, par_ch_t priv_key) {
+void kem_gen_par_ch(poly_t inv, par_ch_t priv_key) {
     size_t i;
 
     for (i = 0; i < POLY_COUNT - 1; ++i) {
@@ -31,23 +31,15 @@ void kem_to_systematic(
     }
 }
 
-void kem_transpose_par_ch(par_ch_t priv_key) {
-    size_t i;
-    for (i = 0; i < POLY_COUNT - 1; ++i) {
-        sp_poly_transpose(priv_key[i], priv_key[i]);
-    }
-}
-
-void kem_keypair(sys_par_ch_t pub_key, par_ch_t priv_key) {
+void kem_gen_keypair(sys_par_ch_t pub_key, par_ch_t priv_key) {
     poly_t inv;
-    kem_rand_par_ch(inv, priv_key);
+    kem_gen_par_ch(inv, priv_key);
     kem_to_systematic(pub_key, inv, priv_key);
-    kem_transpose_par_ch(priv_key);
 }
 
 void kem_gen_err(error_t err) {
     sp_error_t sp_error;
-	sp_error_rand(sp_error);
+	sp_gen_error(sp_error);
     sp_error_to_error(err, sp_error);
 }
 
@@ -62,10 +54,6 @@ void kem_encrypt(syn_t pub_syn, error_t err, const sys_par_ch_t pub_key) {
     poly_add(pub_syn, pub_syn, err[POLY_COUNT - 1]);
 }
 
-#include <stdio.h>
-#include <inttypes.h>
-#include "../test/util.h"
-
 void kem_decode(error_t err, syn_t priv_syn, const par_ch_t priv_key) {
     static const limb_t threshold[] = THRESHOLDS;
     static const size_t ITERATIONS = sizeof(threshold)/sizeof(threshold[0]);
@@ -73,15 +61,11 @@ void kem_decode(error_t err, syn_t priv_syn, const par_ch_t priv_key) {
 	size_t i, p, l;
 	limb_t bit, mask, count;
     syn_t syn_update, masked;
-    sp_poly_t last_poly_transposed;
     dense_par_ch_t priv_key_dense;
 
-    for (i = 0; i < POLY_COUNT - 1; ++i) {
+    for (i = 0; i < POLY_COUNT; ++i) {
         sp_poly_to_poly(priv_key_dense[i], priv_key[i]);
     }
-    sp_poly_transpose(last_poly_transposed, priv_key[POLY_COUNT - 1]);
-    sp_poly_to_poly(priv_key_dense[POLY_COUNT - 1], last_poly_transposed);
-
 	for (i = 0; i < ITERATIONS; ++i) {
         poly_zero(syn_update);
         for (p = 0; p < POLY_COUNT; ++p) {

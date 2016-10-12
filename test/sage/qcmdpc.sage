@@ -22,43 +22,40 @@
 
 from sage.all import *
 
+from config import Config
 import libnacl
+import argparse 
+import binascii
+from pack import *
 
-args = argparse.Namespace(verbose=1)
+args = argparse.Namespace(verbose=5)
+
+
 
 class Util:
     @staticmethod
     def gen_vec(length, weight):
         indices = Permutations(length, weight).random_element()
         return vector(GF(2), length, dict((index,True) for index in indices))
-
+        
     @staticmethod
     def last_block(matrix):
         [], blocks = matrix.subdivisions()
         return matrix.subdivision(0, len(blocks))
-        
+
     @staticmethod
     def print_vec(vec):
         if vec.is_sparse():
             print(sorted(vec.dict().keys()))
         else:
-            print(base64.b64encode(Util.pack_vec(vec)))
-        print("hamming weight: {}".format(vec.hamming_weight()))
+            print(binascii.hexlify(pack_binary_vector(vec)))
+        #print("hamming weight: {}".format(vec.hamming_weight()))
     
     @staticmethod
-    def parse_input_selftest(block_count, block_size, block_weight, error_weight):
-        f_in = sys.stdin
-        keys = struct.unpack('H', f_in.read(2))[0]
-        messages = struct.unpack('H', f_in.read(2))[0]
-        data = [type('', (), {})] * keys # [extendable_object] * keys
-        for k in range(keys):
-            data[k].priv = Util.unpack_priv_key(f_in.read(key_len), block_count, block_size)
-            data[k].err = [None] * messages
-            data[k].msg = [None] * messages
-            for m in range(messages):
-                data[k].err[m] = Util.unpack_error(f_in.read(err_len), block_count, block_size)
-                data[k].msg[m] = f_in.read(msg_len)
-        return keys, messages, data
+    def print_pubkey(mat):
+        [], blocks = mat.subdivisions()
+        for i in xrange(len(blocks) + 1):
+            Util.print_vec(mat.subdivision(0, i).column(0))
 
 
 class DecodingFailure(Exception):
@@ -66,15 +63,15 @@ class DecodingFailure(Exception):
     
 
 class Niederreiter(object):
-    def __init__(self, block_count, block_size, row_weight, error_weight, thresholds):
-        assert is_odd(row_weight), "row weight is even (non-invertible)"
-        self.block_count = block_count
-        self.block_size = block_size
-        self.row_weight = row_weight
-        self.size = block_count * block_size
-        self.error_weight = error_weight
-        self.thresholds = thresholds
-    
+    def __init__(self, cnf):
+        assert is_odd(cnf.poly_weight), "row weight is even (non-invertible)"
+        self.block_count = cnf.poly_count
+        self.block_bits = cnf.poly_bits
+        self.row_weight = cnf.poly_weight
+        self.size = cnf.poly_count * cnf.poly_bits
+        self.error_weight = cnf.error_weight
+        self.thresholds = cnf.thresholds
+
     def keygen(self, private_key=None):
         if private_key is None:
             private_key = self._parity_check()
@@ -123,7 +120,7 @@ class Niederreiter(object):
             err_found = 0
             if args.verbose >= 4:
                 print("#### Decoder round {} (threshold {})".format(i, threshold))
-            syndrome_update = (GF(2)^self.block_size)(0)
+            syndrome_update = (GF(2)^self.block_bits)(0)
             for column_index, column in enumerate(private_key.columns()):
                 error_count = column.pairwise_product(private_syndrome).hamming_weight()
                 if error_count >= threshold:
@@ -132,7 +129,9 @@ class Niederreiter(object):
                     err_found += 1
             private_syndrome += syndrome_update
             if args.verbose >= 5:
-                print("error candidate:"); Util.print_vec(error_candidate.sparse_vector())
+                print("error candidate:");
+                Util.print_vec(error_candidate[:Config.poly_bits])
+                Util.print_vec(error_candidate[Config.poly_bits:])
                 print("syndrome update:"); Util.print_vec(syndrome_update)
                 print("syndrome:"); Util.print_vec(private_syndrome.dense_vector())
             print("It {}, {} errors found".format(i, err_found))
@@ -178,6 +177,62 @@ class KEMDEM(Niederreiter):
         if args.verbose >= 3:
             print("#### Derived secret key"); print(base64.b64encode(secret_key))
         return DEM.decrypt(ciphertext, secret_key)
+
+
+if __name__ == '__main__':
+    N = Niederreiter(Config)
+    data_dir = '/home/sebastian/oqs/niederreiter/data/'
+    
+    # Read private key
+    lists = [None] * Config.poly_count
+    with open(data_dir + 'privkey.txt', 'r') as f:
+        for i, lines in enumerate(f):
+            lists[i] = map(int, lines.rstrip().split(','))
+    privkey = block_matrix([ \
+                vector_to_cyclic_matrix(sparse_list_to_vector(indices, Config.poly_bits)) \
+                for indices in lists], \
+        ncols=Config.poly_count)
+    
+    # Derive public key
+    pubkey, privkey = N.keygen(privkey)
+    print 'privkey (2 lines)'
+    Util.print_vec(privkey.column(0))
+    Util.print_vec(privkey.column(Config.poly_bits))
+    print 'privkey (dense, 2 lines)'
+    Util.print_vec(privkey.column(0).dense_vector())
+    last = Util.last_block(privkey).dense_matrix()
+    Util.print_vec(last.column(0))
+    inv = 1 / last
+    print 'inv'
+    Util.print_vec(inv.column(0))
+    print 'pubkey (2 lines)'
+    Util.print_pubkey(pubkey)
+    
+    # Read error
+    with open(data_dir + 'sp_error.txt', 'r') as f:
+        indices = map(int, f.read().rstrip().split(','))
+    error = sparse_list_to_vector(indices, Config.poly_bits * Config.poly_count)
+    
+    print 'error'
+    Util.print_vec(error)
+    print 'error (dense, 2 lines)'
+    Util.print_vec(error.dense_vector()[:Config.poly_bits])
+    Util.print_vec(error.dense_vector()[Config.poly_bits:])
+    
+    pubsyn = N.encrypt(error, pubkey)
+    print 'pubsyn'
+    Util.print_vec(pubsyn)
+    
+    privsyn = N._private_syndrome(pubsyn, privkey)
+    print 'privsyn'
+    Util.print_vec(privsyn.dense_vector())
+    
+    error2 = N._decode(privsyn, privkey)
+    print 'error (decoded, 2 lines)'
+    Util.print_vec(error2.dense_vector()[:Config.poly_bits])
+    Util.print_vec(error2.dense_vector()[Config.poly_bits:])
+    
+    assert error == error2, "decoding failure"
 
 # class Test:
 #     def __init__(self, block_count, block_size, row_weight, error_weight, thresholds):
@@ -328,6 +383,20 @@ class KEMDEM(Niederreiter):
 #     class Parameters:
 #         def _repr_(self):
 #             return 'Parameters(' 
+
+#    def parse_input_selftest(block_count, block_size, block_weight, error_weight):
+#        f_in = sys.stdin
+#        keys = struct.unpack('H', f_in.read(2))[0]
+#        messages = struct.unpack('H', f_in.read(2))[0]
+#        data = [type('', (), {})] * keys # [extendable_object] * keys
+#        for k in range(keys):
+#            data[k].priv = Util.unpack_priv_key(f_in.read(key_len), block_count, block_size)
+#            data[k].err = [None] * messages
+#            data[k].msg = [None] * messages
+#            for m in range(messages):
+#                data[k].err[m] = Util.unpack_error(f_in.read(err_len), block_count, block_size)
+#                data[k].msg[m] = f_in.read(msg_len)
+#        return keys, messages, data
     
 # def gen_test_vectors(keys, messages):
 #     block_count = 2
@@ -402,16 +471,13 @@ class KEMDEM(Niederreiter):
 #             pt = KD.decrypt((pub_syn, ct), priv)
 #             print("")
 
-if __name__ == "__main__":
     # set globals as helper variables in the repl
-    global gN
-    global gKD
-    global gT
-    gN = Niederreiter(2, 4801, 45, 84, [29, 27, 25, 24, 23, 23])
-    gKD = KEMDEM(2, 4801, 45, 84, [29, 27, 25, 24, 23, 23])
-    gT = Test(2, 4801, 45, 84, [29, 27, 25, 24, 23, 23])
-    # gN = Niederreiter(2, 71, 3, 4, [3, 2, 2, 1, 1, 1])
-    # gKD = KEMDEM(2, 71, 3, 4, [3, 2, 2, 1, 1, 1])
-    # gT = Test(2, 71, 3, 4, [3, 2, 2, 1, 1, 1])
-
-    main()
+    #global gN
+    #global gKD
+    #global gT
+    #gN = Niederreiter(2, 4801, 45, 84, [29, 27, 25, 24, 23, 23])
+    #gKD = KEMDEM(2, 4801, 45, 84, [29, 27, 25, 24, 23, 23])
+    #gT = Test(2, 4801, 45, 84, [29, 27, 25, 24, 23, 23])
+    #gN = Niederreiter(2, 71, 3, 4, [3, 2, 2, 1, 1, 1])
+    #gKD = KEMDEM(2, 71, 3, 4, [3, 2, 2, 1, 1, 1])
+    #gT = Test(2, 71, 3, 4, [3, 2, 2, 1, 1, 1])

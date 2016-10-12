@@ -7,7 +7,6 @@
  * Defines the parameters for both the crypto system and the particular
  * implementation.
  */
-
 #define POLY_COUNT 2
 #define POLY_BITS 4801
 #define POLY_WEIGHT 45

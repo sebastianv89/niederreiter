@@ -7,7 +7,7 @@
 #include "poly.h"
 #include "sp_poly.h"
 
-void sp_error_rand(sp_error_t err) {
+void sp_gen_error(sp_error_t err) {
     static const index_t MASK = ((1 << ERROR_INDEX_BITS) - 1);
     index_t cand, buf[3 * ERROR_WEIGHT];
     size_t i, j, weight = 0;

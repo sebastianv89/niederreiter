@@ -103,6 +103,7 @@ void poly_inplace_mulx(poly_t f) {
     f[i] |= carry;
 }
 
+/* TODO: multiple carry chains? */
 void poly_mulx_modG(poly_t f, const poly_t g) {
     size_t i;
     f[0] = (g[0] << 1) | (g[POLY_LIMBS - 1] >> (TAIL_BITS - 1));
@@ -118,6 +119,7 @@ void poly_mulx_modG(poly_t f, const poly_t g) {
 #endif
 }
 
+/* TODO: multiple carry chains? */
 void poly_inplace_mulx_modG(poly_t f) {
     size_t i;
     limb_t carry, tmp;
@@ -137,6 +139,7 @@ void poly_inplace_mulx_modG(poly_t f) {
 #endif
 }
 
+/* TODO: multiple carry chains? */
 void poly_divx(poly_t f, const poly_t g) {
     size_t i;
     for (i = 0; i < POLY_LIMBS - 1; ++i) {
@@ -145,6 +148,7 @@ void poly_divx(poly_t f, const poly_t g) {
     f[i] = g[i] >> 1;
 }
 
+/* TODO: multiple carry chains? */
 void poly_divx_modG(poly_t f, const poly_t g) {
     size_t i;
     limb_t carry;
@@ -182,24 +186,22 @@ void poly_reduce(poly_t f, const limb_t *g) {
  * instruction (where available) is another option (but less
  * portable).
  */
-void poly_mul(poly_t f, const poly_t g, const poly_t h)
-{
-    size_t bit_index, i;
+void poly_mul(poly_t f, const poly_t g, const poly_t h) {
+    unsigned char bit_index;
+    size_t i;
+    limb_t mask, res[2 * POLY_LIMBS - 1] = {0};
     poly_t lhs;
-    limb_t lhs_mask,  res[2 * POLY_LIMBS - 1];
+
     poly_copy(lhs, g);
-    for (i = 0; i < 2 * POLY_LIMBS - 1; ++i) {
-        res[i] = 0;
-    }
     for (i = 0; i < POLY_LIMBS; ++i) {
-        lhs_mask = -(h[i] & 1);
-        poly_inplace_add_masked(res + i, lhs, lhs_mask);
+        mask = -(h[i] & 1);
+        poly_inplace_add_masked(res + i, lhs, mask);
     }
     for (bit_index = 1; bit_index < LIMB_BITS; ++bit_index) {
         poly_inplace_mulx_modG(lhs);
         for (i = 0; i < POLY_LIMBS; ++i) {
-            lhs_mask = -((h[i] >> bit_index) & 1);
-            poly_inplace_add_masked(res + i, lhs, lhs_mask);
+            mask = -((h[i] >> bit_index) & 1);
+            poly_inplace_add_masked(res + i, lhs, mask);
         }
     }
     poly_reduce(f, res);

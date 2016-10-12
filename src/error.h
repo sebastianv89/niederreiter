@@ -16,7 +16,7 @@
  * Hamming weight = ERROR_WEIGHT
  * Implemented with rejection sampling.
  */
-void sp_error_rand(sp_error_t e);
+void sp_gen_error(sp_error_t e);
 
 /** f := g */
 void sp_error_copy(sp_error_t f, const sp_error_t g);

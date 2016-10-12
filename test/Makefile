@@ -1,4 +1,4 @@
-ROOT_DIR = ../
+ROOT_DIR = ..
 SRC_DIR = $(ROOT_DIR)/src
 OBJ_DIR = $(ROOT_DIR)/obj
 NACL_DIR = $(ROOT_DIR)/lib/nacl-20110221/build/ThinkPadL440
@@ -23,15 +23,13 @@ OBJS = \
 $(OBJ_DIR)/util.o \
 $(NACL_LIB_DIR)/randombytes.o
 
-TESTS = \
-test_theft \
-test_simple \
-test_sp_poly \
-test_poly \
-test_kem
+TESTS = debug
 
 .PHONY: all
 all: $(TESTS)
+
+debug: debug.c $(OBJS) $(ROOT_DIR)/libnrqcmdpc.a
+	$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@
 
 test_%: $(OBJ_DIR)/test_%.o $(OBJS) $(ROOT_DIR)/libnrqcmdpc.a
 	$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@

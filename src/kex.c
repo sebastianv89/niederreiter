@@ -11,7 +11,7 @@ int crypto_kex_keypair(
     sys_par_ch_t spc;
     par_ch_t pc;
 
-    kem_keypair(spc, pc);
+    kem_gen_keypair(spc, pc);
 
     pack_pubkey(pub_key, spc);
     pack_privkey(priv_key, pc);

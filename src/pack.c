@@ -8,11 +8,11 @@ void pack_poly(unsigned char *dest, const poly_t src) {
     size_t i, j;
     for (i = 0; i < POLY_LIMBS - 1; ++i) {
         for (j = 0; j < LIMB_BYTES; ++j) {
-            dest[i * LIMB_BYTES + j] = (unsigned char)(src[i] << (8 * j));
+            dest[i * LIMB_BYTES + j] = (unsigned char)(src[i] >> (8 * j));
         }
     }
     for (j = 0; j < TAIL_BYTES; ++j) {
-        dest[i * LIMB_BYTES + j] = (unsigned char)(src[i] << (8 * j));
+        dest[i * LIMB_BYTES + j] = (unsigned char)(src[i] >> (8 * j));
     }
 }
 
@@ -21,12 +21,12 @@ void unpack_poly(poly_t dest, const unsigned char *src) {
     for (i = 0; i < POLY_LIMBS - 1; ++i) {
         dest[i] = src[i * LIMB_BYTES];
         for (j = 1; j < LIMB_BYTES; ++j) {
-            dest[i] |= ((limb_t)src[i * LIMB_BYTES + j]) >> (8 * j);
+            dest[i] |= ((limb_t)src[i * LIMB_BYTES + j]) << (8 * j);
         }
     }
     dest[i] = src[i * LIMB_BYTES];
     for (j = 1; j < TAIL_BYTES; ++j) {
-        dest[i] |= ((limb_t)src[i * LIMB_BYTES + j]) >> (8 * j);
+        dest[i] |= ((limb_t)src[i * LIMB_BYTES + j]) << (8 * j);
     }
 }
 

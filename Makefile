@@ -30,8 +30,7 @@ SUPERCOP = supercop.tar.gz
 all: $(ARCHIVE) $(SUPERCOP) check
 
 $(ARCHIVE): $(OBJS)
-	ar cr $@ $^
-	ranlib $@
+	ar scr $@ $^
 
 $(SUPERCOP): $(SC_FILES:$(SRC_DIR)/%=$(SC_REF_DIR)/%)
 	(cd $(SC_DIR) && tar cvzf $@ *)
