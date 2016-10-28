@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <sys/stat.h>
 
 #include "config.h"
 #include "types.h"
@@ -19,6 +20,7 @@
         fclose(f);                                \
     }
 
+
 int main(void) {
     FILE *f;
     poly_t inv;
@@ -29,6 +31,12 @@ int main(void) {
     error_t error = {{0}}, error2 = {{0}};
     syn_t pub_syn, priv_syn;
     int dec_fail = 0;
+    struct stat st;
+    
+    /* create DEBUG_DIR if necessary */
+    if (stat(DEBUG_DIR, &st) == -1) {
+        mkdir(DEBUG_DIR, 0700);
+    }
 
     /* kem_gen_keypair */
     kem_gen_par_ch(inv, privkey);
@@ -60,7 +68,7 @@ int main(void) {
     if (dec_fail) {
         puts("Decoding failure");
     } else if (err_eq(error, error2)) {
-        puts("YEAH!!!!");
+        puts("YEAH succesful decryption!!!!");
     } else {
         puts("nope");
     }

@@ -10,8 +10,8 @@ INC_DIRS = $(SRC_DIR) $(NACL_INC_DIR)
 
 CC = clang
 
-CFLAGS  = -g -std=c99
-CFLAGS += -Weverything -Wno-padded -Wdocumentation -Werror
+CFLAGS  = -g -std=gnu11
+CFLAGS += -Weverything -Wno-padded -Wdocumentation -Werror -Wpedantic -Wall -Wextra
 #CFLAGS += -O3 -fomit-frame-pointer
 CFLAGS += -DLIMB_BITS=64 -USUPERCOP_BUILD
 CFLAGS += $(addprefix -I,$(INC_DIRS))

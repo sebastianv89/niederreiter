@@ -10,13 +10,12 @@ INC_DIRS = . $(SRC_DIR) $(NACL_INC_DIR) $(THEFT_DIR)
 CC = clang
 
 CFLAGS  = -g -std=c99
-CFLAGS += -Weverything -Wno-missing-prototypes -Wno-padded -Wno-vla -Werror
+CFLAGS += -Weverything -Werror
 CFLAGS += -DLIMB_BITS=64 -USUPERCOP_BUILD
 CFLAGS += $(addprefix -I,$(INC_DIRS))
 
 LDFLAGS = \
 -L$(ROOT_DIR) -lnrqcmdpc \
--L$(THEFT_DIR) -ltheft \
 -L$(NACL_LIB_DIR) -lnacl
 
 OBJS = \

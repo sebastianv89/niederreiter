@@ -77,16 +77,11 @@ void poly_mul(poly_t f, const poly_t g, const poly_t h);
 
 /** Compare polynomials
  *
- * This function is used in the context of the xgcd.  For equality,
- * the polynomials need to be exactly the same.  To find out which
- * polynomial is greater, only the degree matters.  If the degrees
- * are equal, it does not matter what is returned in \p lt.
+ * This function is used in the context of the xgcd.
  *
- * \param[out] eq f == g ? -1 : 0
  * \param[out] lt f < g ? -1 : 0
  */
 void poly_compare(
-            poly_t eq,
             poly_t lt,
       const poly_t f,
       const poly_t g);

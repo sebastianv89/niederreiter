@@ -48,12 +48,21 @@ int poly_verify_one(const poly_t f) {
 /* TODO: if the processor has a built-in popcount, that is probably
  * more efficient */
 limb_t poly_hamming_weight(const poly_t f) {
+#if __has_builtin(__builtin_popcountll)
+    size_t i;
+    int total = 0;
+    for (i = 0; i < POLY_LIMBS; ++i) {
+        total += __builtin_popcountll(f[i]);
+    }
+    return (limb_t)total;
+#else
     static const limb_t MASK0 = (limb_t)(~0) / 3;
     static const limb_t MASK1 = (limb_t)(~0) / 15 * 3;
     static const limb_t MASK2 = (limb_t)(~0) / 255 * 15;
     static const limb_t MULT  = (limb_t)(~0) / 255;
     limb_t wc, total = 0;
     size_t i;
+
     for (i = 0; i < POLY_LIMBS; ++i) {
         wc   = f[i];
         wc  -= (wc >> 1) & MASK0;
@@ -65,6 +74,7 @@ limb_t poly_hamming_weight(const poly_t f) {
         total += wc;
     }
     return total;
+#endif
 }
 
 void poly_add(poly_t f, const poly_t g, const poly_t h) {
@@ -207,18 +217,18 @@ void poly_mul(poly_t f, const poly_t g, const poly_t h) {
     poly_reduce(f, res);
 }
 
-void poly_compare(poly_t eq, poly_t lt, const poly_t f, const poly_t g) {
+void poly_compare(limb_t *lt, const poly_t f, const poly_t g) {
     size_t word = POLY_LIMBS - 1, shift;
     unsigned char f_byte, g_byte;
+    unsigned char eq = 1;
     *lt = 0;
-    *eq = 1;
     shift = 8 * TAIL_BYTES;
     while (shift > 0) {
         shift -= 8;
         f_byte = (unsigned char)(f[word] >> shift);
         g_byte = (unsigned char)(g[word] >> shift);
-        *lt |= *eq & ((f_byte - g_byte) >> 8);
-        *eq &= ((f_byte ^ g_byte) - 1) >> 8;
+        *lt |= eq & ((f_byte - g_byte) >> 8);
+        eq &= ((f_byte ^ g_byte) - 1) >> 8;
     }
     while (word > 0) {
         --word;
@@ -227,11 +237,10 @@ void poly_compare(poly_t eq, poly_t lt, const poly_t f, const poly_t g) {
             shift -= 8;
             f_byte = (unsigned char)(f[word] >> shift);
             g_byte = (unsigned char)(g[word] >> shift);
-            *lt |= *eq & ((f_byte - g_byte) >> 8);
-            *eq &= ((f_byte ^ g_byte) - 1) >> 8;
+            *lt |= eq & ((f_byte - g_byte) >> 8);
+            eq &= ((f_byte ^ g_byte) - 1) >> 8;
         }
     }
-    *eq = -(*eq);
     *lt = -(*lt);
 }
 
@@ -243,14 +252,15 @@ void poly_xgcd(poly_t f, poly_t a) {
     /* Compute every iteration:
      *      if (even(f)) { f = f_div_x;  a = a_div_x; }
      * else if (even(g)) { g = g_div_x;  b = b_div_x; }
-     * else if (f > g)   { f = fg_div_x; a = ab_div_x; }
-     * else              { g = fg_div_x; b = ab_div_x; }
+     * else if (f > g)   { g = fg_div_x; b = ab_div_x; }
+     * else              { f = fg_div_x; a = ab_div_x; }
      */
     for (i = 0; i < 2 * POLY_BITS - 1; ++i) {
         poly_t f_divx, g_divx, a_divx, b_divx, fg_divx, ab_divx;
-        limb_t done, f_odd, g_odd, f_lt_g;
+        limb_t f_odd, g_odd, g_lt_f;
         limb_t f2f, f2fx, f2fgx, g2g, g2gx, g2fgx;
 
+        /* Possible room for optimization (parallellization) */
         poly_divx(f_divx, f);
         poly_divx(g_divx, g);
         poly_add(fg_divx, f_divx, g_divx);
@@ -258,20 +268,20 @@ void poly_xgcd(poly_t f, poly_t a) {
         poly_divx_modG(b_divx, b);
         poly_add(ab_divx, a_divx, b_divx);
 
-        poly_compare(&done, &f_lt_g, f, g);
+        poly_compare(&g_lt_f, g, f);
         f_odd = -(f[0] & 1);
         g_odd = -(g[0] & 1);
 
 #ifndef ALT_XGCD_MASKS
-        f2f   =  done | ( f_odd & (~g_odd |  f_lt_g));
-        f2fx  = ~done &  ~f_odd;
-        f2fgx = ~done &   f_odd &   g_odd & ~f_lt_g;
-        g2g   =  done | (~f_odd | ( g_odd & ~f_lt_g));
-        g2gx  = ~done & ( f_odd &  ~g_odd);
-        g2fgx = ~done &   f_odd &   g_odd &  f_lt_g;
+        f2f   =  f_odd & (~g_odd | ~g_lt_f);
+        f2fx  = ~f_odd;
+        f2fgx =  f_odd &   g_odd &  g_lt_f;
+        g2g   = ~f_odd | ( g_odd &  g_lt_f);
+        g2gx  =  f_odd &  ~g_odd;
+        g2fgx =  f_odd &   g_odd & ~g_lt_f;
 #else
         f2fx  = ~f_odd;
-        f2fgx = f_odd & g_odd & f_gt_g;
+        f2fgx = f_odd & g_odd & g_lt_f;
         g2g   = f2fx | f2fgx;
         f2f   = ~g2g;
         g2gx  = f2f & g_odd;

@@ -5,9 +5,6 @@
      verified by a test)
    - uint16_t is always enough for WEIGHT (ERROR and POLY) (but should
      be verified by a test)
-- Change types
-  - pubkey_t -> sys_parch_t
-  - privkey_t -> parch_t
 - Index bits must be dynamic!
 - Testing
   - Self-test
@@ -26,10 +23,8 @@
       - 
   - Comparison with sage reference implementation
 - README
-- LICENSE
 - Documentation
   - Doxygen
-- Makefile
 - The implementation should cover two designs:
   - ANSI C / Supercop
     - main function: encryption (KEM/DEM)

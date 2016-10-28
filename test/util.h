@@ -70,7 +70,7 @@ int sys_par_ch_to_str(char *str, const sys_par_ch_t k);
 int par_ch_to_str(char *str, const par_ch_t k);
 
 void fprintpoly(FILE *f, const poly_t p);
-void fprintsppoly(FILE *f, const sp_poly_t p);
+void fprintsp_poly(FILE *f, const sp_poly_t p);
 void fprinterror(FILE *f, const error_t e);
 void fprintsperror(FILE *f, const sp_error_t e);
 void fprintbytes(FILE *f, const unsigned char *buf, int byte_count);

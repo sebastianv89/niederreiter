@@ -302,12 +302,14 @@ void fprintsperror(FILE *f, const sp_error_t err) {
 }
 
 void fprintbytes(FILE *f, const unsigned char *buf, int byte_count) {
-    char str[byte_count * CHARS_PER_INDEX];
-    for (int i = 0; i < byte_count * CHARS_PER_INDEX; ++i) {
-        str[i] = 0;
+    for (int j = 0; j < byte_count; ++j) {
+        char str[CHARS_PER_INDEX];
+        for (int i = 0; i < CHARS_PER_INDEX; ++i) {
+            str[i] = 0;
+        }
+        bytes_to_hex(str, buf, CHARS_PER_INDEX);
+        fprintf(f, "%s", str);
     }
-    bytes_to_hex(str, buf, byte_count);
-    fprintf(f, "%s", str);
 }
 
 void fprintsysparch(FILE *f, const sys_par_ch_t k) {
