@@ -1,6 +1,8 @@
 Implementation of QC-MDPC Niederreiter public key encryption.
 Author: Sebastian R. Verschoor
 
+THIS CODE IS INSECURE. DO NOT USE THIS FOR ANYTHING THAT REQUIRES SECURITY.
+
 A generic implementation of Niederreiter public key encryption using
 quasi-cyclic moderate-density parity-check (QC-MDPC) codes.  The
 implementation applies the KEM/DEM hybrid encryption scheme.  The
